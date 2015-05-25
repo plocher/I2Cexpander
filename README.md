@@ -3,6 +3,8 @@ I2Cexpander is an abstraction library that manages various I2C devices as IO poi
 It is based on an array of devices that can be read and written as desired.  
 Instead of extending the digitalRead()/digitalWrite abstraction, I chose to read and write in units of 4,6, 8 or 16 bits, depending on the device in question.
 
+In the model railroad community, this is slightly reminiscent of the Chubb CMRI system's design
+
 To put this in context, this is part of a code-generated control system for a model railroad layout where there are many microcontrollers in use, one for every place on the layout where there are things to control.
 
 My default program flow is
