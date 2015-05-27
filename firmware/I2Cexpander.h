@@ -14,6 +14,7 @@
 #elif defined(SPARK_CORE)
 
 #include "application.h"
+#include <stdint.h>
 
 #ifndef bitRead
 #define bitRead(value, bit)            (((value) >> (bit)) & 0x01)
