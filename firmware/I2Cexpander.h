@@ -11,7 +11,7 @@
 #include "Arduino.h"
 #include <Wire.h>
 
-#elif defined(SPARK_CORE)
+#elif defined(SPARK)
 
 #include "application.h"
 #include <stdint.h>

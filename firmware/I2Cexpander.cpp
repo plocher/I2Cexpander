@@ -5,7 +5,7 @@
 #if defined(ARDUINO) && ARDUINO >= 100
 #include "Arduino.h"
 #include <Wire.h>
-#elif defined(SPARK_CORE)
+#elif defined(SPARK)
 #include "application.h"
 #endif
 
