@@ -13,11 +13,11 @@
  */
 
 #include <Wire.h>
-#include <I2Cextender.h>
+#include <I2Cexpander.h>
 #include <elapsedMillis.h>
 
 #define NUMPORTS 8  // 2x ADC boards...   See 
-I2Cextender m[NUMPORTS];
+I2Cexpander m[NUMPORTS];
 
 void setup()
 {
@@ -25,18 +25,18 @@ void setup()
     
     Wire.begin();
     for (int x = 0; x < NUMPORTS; x++) {
-        m[x]       = I2Cextender();
+        m[x]       = I2Cexpander();
     }
     // .init(addr, type, channel)
-    m[ 7].init(1, I2Cextender::PCF8591,  0x03); // R  Background/horizon
-    m[ 6].init(1, I2Cextender::PCF8591,  0x02); // G
-    m[ 5].init(1, I2Cextender::PCF8591,  0x01); // B
-    m[ 4].init(1, I2Cextender::PCF8591,  0x00); // W
+    m[ 7].init(1, I2Cexpander::PCF8591,  0x03); // R  Background/horizon
+    m[ 6].init(1, I2Cexpander::PCF8591,  0x02); // G
+    m[ 5].init(1, I2Cexpander::PCF8591,  0x01); // B
+    m[ 4].init(1, I2Cexpander::PCF8591,  0x00); // W
     
-    m[ 3].init(0, I2Cextender::PCF8591,  0x03); // R  Forground/overhead
-    m[ 2].init(0, I2Cextender::PCF8591,  0x02); // G
-    m[ 1].init(0, I2Cextender::PCF8591,  0x01); // B
-    m[ 0].init(0, I2Cextender::PCF8591,  0x00); // W
+    m[ 3].init(0, I2Cexpander::PCF8591,  0x03); // R  Foreground/overhead
+    m[ 2].init(0, I2Cexpander::PCF8591,  0x02); // G
+    m[ 1].init(0, I2Cexpander::PCF8591,  0x01); // B
+    m[ 0].init(0, I2Cexpander::PCF8591,  0x00); // W
 }
 
 void loop() {

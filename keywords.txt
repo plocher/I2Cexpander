@@ -1,0 +1,51 @@
+#######################################
+# Syntax Coloring Map For LedControl
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+I2Cexpander	KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+init	KEYWORD2
+read	KEYWORD2
+write	KEYWORD2
+get		KEYWORD2
+put		KEYWORD2
+getSize	KEYWORD2
+current	KEYWORD2
+last	KEYWORD2
+i2caddr	KEYWORD2
+changed	KEYWORD2
+next	KEYWORD2
+
+#######################################
+# Constants (LITERAL1)
+#######################################
+
+B4        LITERAL1
+B6        LITERAL1
+B8        LITERAL1
+B16       LITERAL1
+B32       LITERAL1
+
+PCA9555   LITERAL1  
+MCP23016  LITERAL1  
+PCF8574   LITERAL1  
+PCF8574A  LITERAL1  
+# DAC/ADC chip
+PCF8591   LITERAL1
+# built-in Arduino ports,  
+ARDIO_A   LITERAL1 
+ARDIO_B   LITERAL1 
+ARDIO_C   LITERAL1 
+ARDIO_D   LITERAL1
+
+PHOTON_A   LITERAL1 
+PHOTON_B   LITERAL1 
+PHOTON_C   LITERAL1 

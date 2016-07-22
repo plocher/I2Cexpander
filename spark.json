@@ -1,7 +1,0 @@
-{
-    "name": "I2Cexpander",
-    "version": "0.1.0",
-    "author": "John Plocher <john.plocher@gmail.com>",
-    "license": "Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0)",
-    "description": "I2C IO expander wrapper"
-}
