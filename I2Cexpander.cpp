@@ -325,7 +325,7 @@ uint32_t I2Cexpander::read9555() {
     if (! ((n == 0) || (n ==7)) ) {
 		return (_last);
     }
-    Wire.requestFrom(_i2c_address, (uint8_t)2, true);
+    Wire.requestFrom(_i2c_address, (uint8_t)2, (uint8_t)1);
     data = Wire.read();
     data |= (Wire.read() << 8);  
     return data;
@@ -414,7 +414,7 @@ uint32_t I2Cexpander::read9685() {
     if (! ((n == 0) || (n ==7)) ) {
 		return (_last);
     }
-    Wire.requestFrom(_i2c_address, (uint8_t)4, true);
+    Wire.requestFrom(_i2c_address, (uint8_t)4, (uint8_t)1);
     startdata = Wire.read();
     startdata |= (Wire.read() << 8);  
     stopdata = Wire.read();
@@ -459,7 +459,7 @@ uint32_t I2Cexpander::read8591() {
     Wire.beginTransmission(_i2c_address);
     Wire.write(0x04);
     Wire.endTransmission();
-    Wire.requestFrom(_i2c_address, 5);
+    Wire.requestFrom(_i2c_address, (uint8_t)5);
 
     Wire.read(); // ignore the Analog Output value
 
@@ -493,7 +493,7 @@ uint32_t I2Cexpander::Xread8591() {
 #endif
 		return (_last);
     }
-    Wire.requestFrom(_i2c_address, 2);
+    Wire.requestFrom(_i2c_address, (uint8_t)2);
     // Why two bytes? The PCF8591 returns the previously measured value first – then the current byte.
     _d1 = Wire.read();
     _d2 = Wire.read();  // ignore the first byte received (see above)
