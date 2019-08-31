@@ -9,15 +9,15 @@ To put this in context, this is part of a code-generated control system for a mo
 
 My default program flow is
 
-<code>
-	define each layout device (signal heads, turnout controllers, occupancy detectors,...) along with which bits are used to talk to it.
-	loop() {
-	    read the layout state
-	    walk thru every device and ask it to update itself
-	    if anything changed, handle the side effects (i.e., track becomes occupied, signal needs to turn red...)
-	    if needed, update outputs (i.e., write new values)
-	}
-</code>
+<pre>
+define each layout device (signal heads, turnout controllers, occupancy detectors,...) along with which bits are used to talk to it.
+loop() {
+    read the layout state
+    walk thru every device and ask it to update itself
+    if anything changed, handle the side effects (i.e., track becomes occupied, signal needs to turn red...)
+    if needed, update outputs (i.e., write new values)
+}
+</pre>
 
 The list of supported I2C expanders is
 <code>
