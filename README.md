@@ -20,7 +20,8 @@ loop() {
 </pre>
 
 The list of supported I2C expanders is
-<code>
+<pre>
+
       PCA9555       // Bits 0  1  2  3  4  5  6  7  8   9  10  11  12  13  14  15  16
       MCP23016      // Bits 0  1  2  3  4  5  6  7  8   9  10  11  12  13  14  15  16
       PCF8574       // Bits 0  1  2  3  4  5  6  7  8
@@ -48,7 +49,7 @@ The list of supported I2C expanders is
       WEMOS_B       //      GPIO  12, 13,  3,  1    Pins D6 D7 RX TX
       WEMOS         //      GPIO  16, 13,  3,  1    Pins D0 D7 RX TX
     #endif
-</code>
+</pre>
 
 == Circuit ==
 
@@ -60,7 +61,7 @@ See http://www.spcoast.com/wiki/index.php/IO16-8574 and http://www.spcoast.com/w
 
 Here's an example of driving 2 I2C devices and the onboard pins in a cylon pattern (presuming common anode LEDs that light when driving cathode to ground thru the I2C device pin...)
 
-<code>
+<pre>
 #include "I2Cexpander.h"
 I2Cexpander m[3+3];	// 3 I2C extenders plus 3 built in Photon "ports"
 
@@ -116,7 +117,7 @@ void loop() {
     }
     delay(DELAYCOUNT);
 }
-</code>
+</pre>
 
 
 
