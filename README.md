@@ -19,6 +19,37 @@ My default program flow is
 	}
 </code>
 
+The list of supported I2C expanders is
+<code>
+      PCA9555       // Bits 0  1  2  3  4  5  6  7  8   9  10  11  12  13  14  15  16
+      MCP23016      // Bits 0  1  2  3  4  5  6  7  8   9  10  11  12  13  14  15  16
+      PCF8574       // Bits 0  1  2  3  4  5  6  7  8
+      PCF8574A      // Bits 0  1  2  3  4  5  6  7  8
+      PCF8591       // 4 A-D converters, 1 D-A
+      MAX731x       // Bits 0  1  2  3  4  5  6  7  8   9  10  11  12  13  14  15  16
+      PCA9685
+
+    Pseudo-expanders - can read and write built in pins (as digital I/O) as well:
+
+    #if defined(ARDUINO_AVR_DUEMILANOVE)
+      // built-in Arduino ports, skipping RX/TX, Lnet RX/TX and I2C pins
+      ARDIO_A       // Bits D2   D3  D4   D5 - low digital
+      ARDIO_B       //      D6   D9  D10  D11  - high digital
+      ARDIO_C       //      D12  D13 A0   A1  - mixed, digital and analog
+      ARDIO_D       //      A2   A3  A6  A7   - analog (A6 & A7 are input only)
+    #endif
+    #if defined(SPARK_CORE) // Built in Photon Ports
+      PHOTON_A      //      D2, D3, D4,  D5,  -- -- -- --
+      PHOTON_B      //      D6, D7, A0,  A1,  -- -- -- --
+      PHOTON_C      //      A2, A3, DAC, WKP, -- -- -- --
+    #endif
+    #if defined(ARDUINO_ESP8266_WEMOS_D1MINI)
+      WEMOS_A       //      GPIO   4,  0,  2, 14    Pins D2 D3 D4 D5
+      WEMOS_B       //      GPIO  12, 13,  3,  1    Pins D6 D7 RX TX
+      WEMOS         //      GPIO  16, 13,  3,  1    Pins D0 D7 RX TX
+    #endif
+</code>
+
 == Circuit ==
 
 Connect I2C expanders to the I2C bus, set their address jumpers...
