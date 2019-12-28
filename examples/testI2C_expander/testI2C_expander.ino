@@ -78,7 +78,7 @@ void setup()
     Wire.begin();
     switch (NUMPORTS) {                      // 0 = output bit, 1=input
 
-        case 10: m[19].init(7, I2Cexpander::PCF8574,  B0);/* FALLTHRU */
+        case 20: m[19].init(7, I2Cexpander::PCF8574,  B0);/* FALLTHRU */
         case 19: m[18].init(6, I2Cexpander::PCF8574,  B0);/* FALLTHRU */
         case 18: m[17].init(7, I2Cexpander::PCF8574A, B0);/* FALLTHRU */
         case 17: m[16].init(6, I2Cexpander::PCF8574A, B0);/* FALLTHRU */
