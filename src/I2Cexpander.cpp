@@ -10,8 +10,8 @@
 
    The design philosophy is to abstract the setup and initialization of the various chipsets
    into an "init" function, and then provide high level "read" and "write" calls that do the right thing.
-   It is built on top of the base Wire infrastructure, and coexists (but does not interoperate) with
-   other I2C devicee libraries.
+   It is built on top of the base Wire infrastructure, and coexists (but does not inter-operate) with
+   other I2C device libraries.
 
    This version is limited to a single I2C bus; it does not know how to manage/route through I2C muxes or
    switch between different MCU I2C appliances.
