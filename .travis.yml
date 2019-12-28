@@ -10,6 +10,7 @@ addons:
       - doxygen
 
 script:
+  - if [ ! -d docs/html ]; then mkdir -p docs/html; fi
   - doxygen Doxyfile
 
 deploy:
