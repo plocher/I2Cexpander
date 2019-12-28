@@ -1,5 +1,7 @@
 # I2Cexpander - I2C I/O device abstraction
-[![Build Status](https://travis-ci.org/plocher/I2Cexpander.svg?branch=master)](https://travis-ci.org/plocher/I2Cexpander)
+[![Build Status](https://api.travis-ci.org/plocher/I2Cexpander.svg?branch=master)](https://travis-ci.org/plocher/I2Cexpander)
+[Library Documentation](https://plocher.github.io/I2Cexpander)
+
 
 I2Cexpander is an abstraction library that manages various I2C devices as IO points you can use.
 
