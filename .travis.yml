@@ -10,13 +10,13 @@ addons:
       - doxygen
 
 script:
-  - if [ ! -d docs/html ]; then mkdir -p docs/html; fi
+  - if [ ! -d html ]; then mkdir -p html; fi
   - doxygen Doxyfile
 
 deploy:
   provider: pages
   skip_cleanup: true
-  local_dir: docs/html
+  local_dir: html
   github_token: $GH_REPO_TOKEN
   on:
     branch: master
