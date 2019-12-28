@@ -7,24 +7,24 @@
 #include <Wire.h>
 #include <I2Cexpander.h>
 
-#define Dc 40
-#define Dl 1000
+#define Dc 40   // Delay for cylon...
+#define Dl 1000 // Delay for ladder...
 
-#define NUMPORTS 4+4
-I2Cexpander m[16+4];
+#define NUMPORTS 16+4
+I2Cexpander m[NUMPORTS];
 
 void turnAllOff() {
     for (int x = 0; x < NUMPORTS; x++) {
-        m[x].write(0xFFFF);
+        m[x].write(0xFFFFFFFF);
     }
 }
 void turnAllOn() {
     for (int x = 0; x < NUMPORTS; x++) {
-        m[x].write(0x0000);
+        m[x].write(0x00000000);
     }
 }
 
-// walk the bits in the ports 0..max
+// walk the bits in the ports 0..max bits 0..7
 void cylon(int iterations) {
     for (int iter = 0; iter < iterations; iter++) {
         for (int b = 0; b <= 7; b++) {
@@ -104,29 +104,12 @@ void setup()
     }
 }
 
-void toggle(int x) {
-    lcd.setCursor(0,0);lcd.print("m[");if (x < 10) lcd.print(" "); lcd.print(x, DEC);lcd.print("]");
-    lcd.setCursor(5,1); lcd.print("00 ... ");
-    m[x].put(0x00); delay(1000); 
-    lcd.print("FF");
-    m[x].put(0xFF); delay(1000);
-    lcd.setCursor(5,1); lcd.print("               ");
-}
-
-void loop() {
-  for (int x = 0; x < NUMPORTS; x++) {
-    toggle(x);
-  }
-}
-
-void xxloop()
+void loop()
 {
   turnAllOn();   delay(1000); 
   turnAllOff();  delay(1000); 
   cylon(5);      delay(300);
   ladder(1);     delay(200); 
   turnAllOff();  delay(300);
-  turnAllOn();   delay(1000); 
-  turnAllOff();  delay(1000); 
 }
 

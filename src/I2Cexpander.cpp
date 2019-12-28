@@ -1,12 +1,93 @@
-// IO Expander wrapper library
-// interfaces with a variety of I2C expanders, ADC/DAC devices and Arduino/Photon local pins
-// Copyright (c) 20011...2015 John Plocher, released under the terms of the MIT License (MIT)
-//
-//  The expander names ARDIO* are convenience functions for accessing the onboard Arduino IO pins.
-//  Ditto for the PHOTON* ones
-//
-//  The digitalWrite/Read functions are convenience interfaces - 
-//     NOTE:  You should use the Arduino provided ones for onboard pins if you need performance.
+/*!
+   @file I2Cexpander.cpp
+
+   @mainpage I2C IO Expander wrapper library
+
+   @section intro_sec Introduction
+
+   This library provides a common interface to a variety of I2C expanders,
+   ADC/DAC devices and Arduino/Photon/Wemos/ESP platform-local pins.
+
+   The design philosophy is to abstract the setup and initialization of the various chipsets
+   into an "init" function, and then provide high level "read" and "write" calls that do the right thing.
+   It is built on top of the base Wire infrastructure, and coexists (but does not interoperate) with
+   other I2C devicee libraries.
+
+   This version is limited to a single I2C bus; it does not know how to manage/route through I2C muxes or
+   switch between different MCU I2C appliances.
+
+   The digitalWrite/Read functions are convenience interfaces, but not very performant -
+   You should use the Arduino provided ones for onboard pins if you need performance.
+
+   The support for PHOTON is rudimentary - their emulation of the Arduino environment is problematic.
+
+
+    It is based on an array of devices that can be read and written as desired.
+    Instead of extending the digitalRead()/digitalWrite abstraction, I chose to read and write
+    in units of 4,6, 8 or 16 bits, depending on the device in question.
+
+    In the model railroad community, this is slightly reminiscent of the Chubb CMRI system's design
+
+    To put this in context, this is part of a code-generated control system for a model railroad
+    layout where there are many microcontrollers in use, one for every place on the layout where
+    there are things to control.
+
+    My default program flow is
+
+    <pre>
+    define each layout device (signal heads, turnout controllers, occupancy detectors,...) along with the particular bits are used to talk to it.
+    loop() {
+        read the layout state
+        walk thru every device and ask it to update itself
+        if anything changed, handle the side effects (i.e., track becomes occupied, signal needs to turn red...)
+        if needed, update outputs (i.e., write new values)
+    }
+    </pre>
+
+    The list of supported I2C expanders is
+    <pre>
+
+          PCA9555       // Bits 0  1  2  3  4  5  6  7  8   9  10  11  12  13  14  15  16
+          MCP23016      // Bits 0  1  2  3  4  5  6  7  8   9  10  11  12  13  14  15  16
+          PCF8574       // Bits 0  1  2  3  4  5  6  7  8
+          PCF8574A      // Bits 0  1  2  3  4  5  6  7  8
+          PCF8591       // 4 8-bit A/D converters, 1 8-bit D/A
+          MAX731x       // Bits 0  1  2  3  4  5  6  7  8   9  10  11  12  13  14  15  16
+          PCA9685
+
+        Pseudo-expanders - can read and write built in pins (as digital I/O) as well:
+
+        // if defined(ARDUINO_AVR_DUEMILANOVE)
+          // built-in Arduino ports, skipping RX/TX, Lnet RX/TX and I2C pins
+          ARDIO_A       // Bits D2   D3  D4   D5 - low digital
+          ARDIO_B       //      D6   D9  D10  D11  - high digital
+          ARDIO_C       //      D12  D13 A0   A1  - mixed, digital and analog
+          ARDIO_D       //      A2   A3  A6  A7   - analog (A6 & A7 are input only)
+        // endif
+        // if defined(SPARK_CORE) // Built in Photon Ports
+          PHOTON_A      //      D2, D3, D4,  D5,  -- -- -- --
+          PHOTON_B      //      D6, D7, A0,  A1,  -- -- -- --
+          PHOTON_C      //      A2, A3, DAC, WKP, -- -- -- --
+        // endif
+        // if defined(ARDUINO_ESP8266_WEMOS_D1MINI)
+          WEMOS_A       //      GPIO   4,  0,  2, 14    Pins D2 D3 D4 D5
+          WEMOS_B       //      GPIO  12, 13,  3,  1    Pins D6 D7 RX TX
+          WEMOS_C       //      GPIO  16, 13,  3,  1    Pins D0 D7 RX TX
+        // endif
+    </pre>
+
+   @section dependencies Dependencies
+
+   Arduino wire I2C implementation
+
+   @section author Author
+
+   Written by John Plocher
+
+   @section license License
+
+   Released under the terms of the MIT License (MIT)
+ */
 
 #include "I2Cexpander.h"
 #if defined(ARDUINO) && ARDUINO >= 100
@@ -20,9 +101,10 @@
 // #define I2C_EXTENDER_DEBUG
 // #define I2C_EXTENDER_INVERTLOCAL  - writing a "1" puts port ON (@5v) rather than OFF @0v
 
-// Arduino 12, 13L ARDUINO_AVR_DUEMILANOVE
-// OAK:     ARDUINO_ESP8266_OAK
-// Photon   SPARK_CORE
+/**
+ * Library version
+ */
+const char *I2Cexpander::version = "2.0.0";
 
 I2Cexpander::I2Cexpander() {
     _address     = -1;
@@ -37,18 +119,17 @@ I2Cexpander::I2Cexpander() {
     next         = 0;
     debugflag    = 0;
 }
-
-void I2Cexpander::init(uint16_t address, uint16_t chip, uint16_t config, boolean debounce /* == false */ ) {
+void I2Cexpander::init(uint16_t address, uint16_t device_type, uint16_t config, boolean debounce /* == false */ ) {
 #ifdef I2C_EXTENDER_DEBUG
     Serial.print("I2Cexpander:init(");
     Serial.print(address, DEC); Serial.print(", ");
-    Serial.print(chip, DEC);    Serial.print(", ");
+    Serial.print(device_type, DEC);    Serial.print(", ");
     Serial.print(config, DEC);  Serial.print(", ");
     Serial.print("debounce "); Serial.print(_debounce ? "on" : "off");
     Serial.print(")\n");
 #endif  
     _address     = address;
-    _chip        = chip;
+    _chip        = device_type;
     _config      = config;
     _i2c_address = -1; // default
     _debounce    = debounce;
@@ -68,11 +149,7 @@ void I2Cexpander::init(uint16_t address, uint16_t chip, uint16_t config, boolean
         case I2Cexpander::ARDIO_A:
         case I2Cexpander::ARDIO_B:
         case I2Cexpander::ARDIO_C:
-        case I2Cexpander::ARDIO_D:
-        case I2Cexpander::ARDIO12_A:
-        case I2Cexpander::ARDIO12_B:
-        case I2Cexpander::ARDIO13_A:
-        case I2Cexpander::ARDIO13_B:    initArduino(); break;
+        case I2Cexpander::ARDIO_D:    initArduino(); break;
 #endif
 #if defined(SPARK_CORE)
         case I2Cexpander::PHOTON_A:
@@ -102,7 +179,10 @@ uint8_t  I2Cexpander::digitalRead(uint8_t dataPin) {
 
 
 void I2Cexpander::printData(uint32_t data) {
-    if (_size == B8)   { 
+    if (_size == B4)        {
+							  Serial.print((byte)(data >>  0) & 0x0F, BIN);
+						    }
+    else if (_size == B8)        {
 							  Serial.print((byte)(data >>  0) & 0xFF, BIN);
 						    }
     else if (_size == B16)  { 
@@ -120,8 +200,9 @@ void I2Cexpander::printData(uint32_t data) {
 
 void I2Cexpander::printString(const char *tag) {
 	Serial.print(tag);
-    Serial.print("i2c_address=0x");   Serial.print(_address,   HEX); 
-    Serial.print(", chip=");          Serial.print(_chip,      DEC); 
+    Serial.print(" addr=0x");         Serial.print(_address,   HEX);
+    Serial.print(" i2c_address=0x");  Serial.print(_i2c_address,   HEX);
+    Serial.print(", chip=");          Serial.print(_chip,      DEC);
     Serial.print(", conf=");          Serial.print(_config,    DEC);
     Serial.print(", data size=");     Serial.print(_size,      DEC);	
 }
@@ -164,21 +245,12 @@ uint32_t I2Cexpander::_read() {
         case I2Cexpander::ARDIO_A:    
         case I2Cexpander::ARDIO_B:  
         case I2Cexpander::ARDIO_C:
-        case I2Cexpander::ARDIO_D:
-        case I2Cexpander::ARDIO12_A:
-        case I2Cexpander::ARDIO12_B:
-        case I2Cexpander::ARDIO13_A:
-        case I2Cexpander::ARDIO13_B:      data = readArduino(); break;
+        case I2Cexpander::ARDIO_D:          data = readArduino(); break;
 #endif
 #if defined(SPARK_CORE)
-        case I2Cexpander::A:
-        case I2Cexpander::B:
-        case I2Cexpander::C:            data = readPhoton();  break;
-#endif
-#if defined(ARDUINO_ESP8266_OAK)
-        case I2Cexpander::A:
-        case I2Cexpander::B:
-        case I2Cexpander::C:            data = readOAK(); break;
+        case I2Cexpander::PHOTON_A:
+        case I2Cexpander::PHOTON_B:
+        case I2Cexpander::PHOTON_C:         data = readPhoton();  break;
 #endif
 #if defined(ARDUINO_ESP8266_WEMOS_D1MINI)
         case I2Cexpander::WEMOS_MATRIX:
@@ -243,21 +315,12 @@ void I2Cexpander::write(uint32_t data) {
     case I2Cexpander::ARDIO_A:
     case I2Cexpander::ARDIO_B:
     case I2Cexpander::ARDIO_C:
-    case I2Cexpander::ARDIO_D:
-    case I2Cexpander::ARDIO12_A:
-    case I2Cexpander::ARDIO12_B:
-    case I2Cexpander::ARDIO13_A:
-    case I2Cexpander::ARDIO13_B:        writeArduino(data); break;
+    case I2Cexpander::ARDIO_D:        writeArduino(data); break;
 #endif
 #if defined(SPARK_CORE)
-    case I2Cexpander::A:
-    case I2Cexpander::B:
-    case I2Cexpander::C:                writePhoton(data); break;
-#endif
-#if defined(ARDUINO_ESP8266_OAK)
-    case I2Cexpander::A:
-    case I2Cexpander::B:
-    case I2Cexpander::C:                writeOAK(data); break;
+    case I2Cexpander::PHOTON_A:
+    case I2Cexpander::PHOTON_B:
+    case I2Cexpander::PHOTON_C:         writePhoton(data); break;
 #endif
 #if defined(ARDUINO_ESP8266_WEMOS_D1MINI)
     case I2Cexpander::WEMOS_MATRIX:
@@ -278,9 +341,9 @@ void I2Cexpander::write(uint32_t data) {
 ***************************************************************************
  */
 
-void I2Cexpander::init8(uint8_t i2caddr, uint16_t dir) {
+void I2Cexpander::init8(uint8_t i2caddr, uint16_t config) {
     _i2c_address = i2caddr;
-    write8(dir);
+    write8(config);
 }
 
 uint32_t I2Cexpander::read8() {
@@ -358,6 +421,7 @@ void I2Cexpander::init731x(uint8_t i2caddr, uint16_t dir) {
     Wire.write(0x08);  //  No Global Brightness
     Wire.endTransmission();  
 	/*
+	 // alternative for PWM stuff...
     Wire.beginTransmission(_i2c_address);
     Wire.write(0x0E);  // O16 config, master brightness
 	Wire.write(0xFF);  
@@ -518,7 +582,7 @@ void I2Cexpander::write8591(uint32_t data) {
 ***************************************************************************
  */
 
-// only write a bit to an Arduino or Photon port
+// only write a bit to a MCU port using digitalWrite()
 // if the config register allows writing to it
 //                                                                 WRITEIF
 void I2Cexpander::writeif(uint8_t port, uint32_t data, uint8_t bit) {
@@ -577,62 +641,6 @@ void I2Cexpander::initArduino(void) {   //                             INIT
         //      A6 and 
         //      A7 are Analog IN, pinmode doesn't work with them
     break;
-
-// set Arduino I/O pin direction (1=OUTPUT, 0-INPUT)    
-    case I2Cexpander::ARDIO12_A:  _size = B8;
-        pinMode(0,  bitRead(_config, 0) ? INPUT : OUTPUT);
-        pinMode(1,  bitRead(_config, 1) ? INPUT : OUTPUT);
-        pinMode(5,  bitRead(_config, 2) ? INPUT : OUTPUT);
-        pinMode(6,  bitRead(_config, 3) ? INPUT : OUTPUT);
-
-#if !defined(__AVR_ATmega32U4__)    // don't mess with I2C pins!
-        pinMode(2,  bitRead(_config, 4) ? INPUT : OUTPUT);
-#else
-        pinMode(A4, bitRead(_config, 4) ? INPUT : OUTPUT);
-#endif
-        pinMode(9,  bitRead(_config, 5) ? INPUT : OUTPUT);
-        pinMode(10, bitRead(_config, 6) ? INPUT : OUTPUT);
-        pinMode(11, bitRead(_config, 7) ? INPUT : OUTPUT);
-    break;
-    case I2Cexpander::ARDIO12_B:  _size = B8;
-        pinMode(12, bitRead(_config, 0) ? INPUT : OUTPUT);
-        pinMode(13, bitRead(_config, 1) ? INPUT : OUTPUT);
-        pinMode(A0, bitRead(_config, 2) ? INPUT : OUTPUT);
-        pinMode(A1, bitRead(_config, 3) ? INPUT : OUTPUT);
-
-        pinMode(A2, bitRead(_config, 4) ? INPUT : OUTPUT);
-        pinMode(A3, bitRead(_config, 5) ? INPUT : OUTPUT);
-
-#if !defined(__AVR_ATmega32U4__)    // don't mess with I2C pins!
-        pinMode(3,  bitRead(_config, 6) ? INPUT : OUTPUT);
-#else
-        pinMode(A5, bitRead(_config, 6) ? INPUT : OUTPUT);
-#endif
-        pinMode(4,  bitRead(_config, 7) ? INPUT : OUTPUT);
-    break;
-
-    // set pro-MINI Arduino I/O pin direction (1=OUTPUT, 0-INPUT)
-    case I2Cexpander::ARDIO13_A:  _size = B8;  
-        pinMode(2,  bitRead(_config, 0) ? INPUT : OUTPUT);
-        pinMode(3,  bitRead(_config, 1) ? INPUT : OUTPUT);
-        pinMode(4,  bitRead(_config, 2) ? INPUT : OUTPUT);
-        pinMode(5,  bitRead(_config, 3) ? INPUT : OUTPUT);
-
-        pinMode(6,  bitRead(_config, 4) ? INPUT : OUTPUT);
-        pinMode(9,  bitRead(_config, 5) ? INPUT : OUTPUT);
-        pinMode(10, bitRead(_config, 6) ? INPUT : OUTPUT);
-        pinMode(11, bitRead(_config, 7) ? INPUT : OUTPUT);
-    break;
-    case I2Cexpander::ARDIO13_B:  _size = B8;  _config |= 0xC0; 
-        pinMode(12, bitRead(_config, 0) ? INPUT : OUTPUT);
-        pinMode(13, bitRead(_config, 1) ? INPUT : OUTPUT);
-        pinMode(A0, bitRead(_config, 2) ? INPUT : OUTPUT);
-        pinMode(A1, bitRead(_config, 3) ? INPUT : OUTPUT);
-
-        pinMode(A2, bitRead(_config, 4) ? INPUT : OUTPUT);
-        pinMode(A3, bitRead(_config, 5) ? INPUT : OUTPUT);
-        // A6 and A7 are Analog IN, pinmode doesn't work with them
-    break;
     }
 }
 
@@ -665,61 +673,6 @@ uint32_t I2Cexpander::readArduino(void) {   //                         READ
         bitWrite(data,3, (analogRead(A7) > 100) ? 1 : 0);
     break;
 
-    case I2Cexpander::ARDIO12_A:        
-          bitWrite(data,0,::digitalRead(0));
-          bitWrite(data,1,::digitalRead(1));
-          bitWrite(data,2,::digitalRead(5));
-          bitWrite(data,3,::digitalRead(6));
-#if !defined(__AVR_ATmega32U4__)        // don't mess with I2C pins!
-          bitWrite(data,4,::digitalRead(2));
-#else
-          bitWrite(data,4,::digitalRead(A4));
-#endif
-          bitWrite(data,5,::digitalRead(9));
-          bitWrite(data,6,::digitalRead(10));
-          bitWrite(data,7,::digitalRead(11));
-
-    break;
-    case I2Cexpander::ARDIO12_B:        
-         bitWrite(data,0,::digitalRead(12));
-         bitWrite(data,1,::digitalRead(13));
-         bitWrite(data,2,::digitalRead(A0));
-         bitWrite(data,3,::digitalRead(A1));
-
-         bitWrite(data,4,::digitalRead(A2));
-         bitWrite(data,5,::digitalRead(A3));
-#if !defined(__AVR_ATmega32U4__)        // don't mess with I2C pins!
-         bitWrite(data,6,::digitalRead(3));
-#else
-         bitWrite(data,6,::digitalRead(A5));
-#endif
-         bitWrite(data,7,::digitalRead(4));
-
-    break;
-    case I2Cexpander::ARDIO13_A:        
-        bitWrite(data,0,::digitalRead(2));
-        bitWrite(data,1,::digitalRead(3));
-        bitWrite(data,2,::digitalRead(4));
-        bitWrite(data,3,::digitalRead(5));
-
-        bitWrite(data,4,::digitalRead(6));
-        bitWrite(data,5,::digitalRead(9));
-        bitWrite(data,6,::digitalRead(10));
-        bitWrite(data,7,::digitalRead(11));
-
-    break;
-    case I2Cexpander::ARDIO13_B:        
-        bitWrite(data,0,::digitalRead(12));
-        bitWrite(data,1,::digitalRead(13));
-        bitWrite(data,2,::digitalRead(A0));
-        bitWrite(data,3,::digitalRead(A1));
-
-        bitWrite(data,4,::digitalRead(A2));
-        bitWrite(data,5,::digitalRead(A3));
-        bitWrite(data,6, (analogRead(A6) > 100) ? 1 : 0);
-        bitWrite(data,7, (analogRead(A7) > 100) ? 1 : 0);
-
-    break;
     default: break;
     }
 return data;
@@ -738,10 +691,6 @@ void I2Cexpander::writeArduino(uint32_t data) { //             WRITE
               case ARDIO_B:   s=F("ARDIO_B");   break;
               case ARDIO_C:   s=F("ARDIO_C");   break;
               case ARDIO_D:   s=F("ARDIO_D");   break;
-              case ARDIO12_A: s=F("ARDIO12_A"); break;
-              case ARDIO12_B: s=F("ARDIO12_B"); break;
-              case ARDIO13_A: s=F("ARDIO13_A"); break;
-              case ARDIO13_B: s=F("ARDIO13_B"); break;
               case A:  s=F("A");  break;
               case B:  s=F("B");  break;
               case C:  s=F("C");  break;
@@ -782,57 +731,6 @@ void I2Cexpander::writeArduino(uint32_t data) { //             WRITE
          //      A7 are input-only analog pins
     break;
 
-    case I2Cexpander::ARDIO12_A:        
-         writeif( 0, data, 0);
-         writeif( 1, data, 1);
-         writeif( 5, data, 2);
-         writeif( 6, data, 3);
-
-#if !defined(__AVR_ATmega32U4__)    // don't mess with I2C pins!
-         writeif( 2, data, 4);
-#else
-         writeif(A4, data, 4);
-#endif
-         writeif( 9, data, 5);
-         writeif(10, data, 6);
-         writeif(11, data, 7);
-    break;
-    case I2Cexpander::ARDIO12_B:        
-         writeif(12, data, 0);
-         writeif(13, data, 1);
-         writeif(A0, data, 2);
-         writeif(A1, data, 3);
-
-         writeif(A2, data, 4);
-         writeif(A3, data, 5);
-#if !defined(__AVR_ATmega32U4__)    // don't mess with I2C pins!
-         writeif( 3, data, 6);
-#else
-         writeif(A5, data, 6);
-#endif
-         writeif( 4, data, 7);
-    break;
-    case I2Cexpander::ARDIO13_A:        
-         writeif( 2, data, 0);
-         writeif( 3, data, 1);
-         writeif( 4, data, 2);
-         writeif( 5, data, 3);
-
-         writeif( 6, data, 4);
-         writeif( 9, data, 5);
-         writeif(10, data, 6);
-         writeif(11, data, 7);
-    break;
-    case I2Cexpander::ARDIO13_B:        
-         writeif(12, data, 0);
-         writeif(13, data, 1);
-         writeif(A0, data, 2);
-         writeif(A1, data, 3);
-
-         writeif(A2, data, 4);
-         writeif(A3, data, 5);
-         // A6 and A7 are input only analog pins
-    break;
     default: break;
     }
 }
@@ -930,9 +828,10 @@ void I2Cexpander::writePhoton(uint32_t data) { //                    WRITE
 ***************************************************************************
 **                      W e m o s  D 1  R 2                              **
 ***************************************************************************
-      WEMOS_MATRIX,               //      GPIO   2, 14, 12        Pins D4 D5 D6
-      WEMOS,                      //      GPIO  16, 13,  3,  1    Pins D0 D7 RX TX
-
+      WEMOS_A,              //      GPIO   4,  0,  2, 14    Pins D2 D3 D4 D5
+      WEMOS_B,              //      GPIO  12, 13,  3,  1    Pins D6 D7 RX TX
+      WEMOS_C,              //      GPIO  16, 13,  3,  1    Pins D0 D7 RX TX
+      WEMOS_MATRIX,         //      GPIO   4,  2, 14, 12    Pins D3 [D4 D5 D6] used by LEDCONTROL
  */
 void I2Cexpander::initWemos(void) {   //                             INIT
     _size = B4;
@@ -949,17 +848,17 @@ void I2Cexpander::initWemos(void) {   //                             INIT
         pinMode(RX, bitRead(_config, 2) ? INPUT : OUTPUT);
         pinMode(TX, bitRead(_config, 3) ? INPUT : OUTPUT);
     break;
+    case I2Cexpander::WEMOS_C:
+        pinMode(D0, bitRead(_config, 0) ? INPUT : OUTPUT);
+        pinMode(D7, bitRead(_config, 1) ? INPUT : OUTPUT);
+        pinMode(RX, bitRead(_config, 2) ? INPUT : OUTPUT);
+        pinMode(TX, bitRead(_config, 3) ? INPUT : OUTPUT);
+    break;
     case I2Cexpander::WEMOS_MATRIX:
         pinMode(D3, bitRead(_config, 0) ? INPUT : OUTPUT);
         pinMode(D4, bitRead(_config, 1) ? INPUT : OUTPUT);
         pinMode(D5, bitRead(_config, 2) ? INPUT : OUTPUT);
         pinMode(D6, bitRead(_config, 3) ? INPUT : OUTPUT);
-    break;
-    case I2Cexpander::WEMOS:
-        pinMode(D0, bitRead(_config, 0) ? INPUT : OUTPUT);
-        pinMode(D7, bitRead(_config, 1) ? INPUT : OUTPUT);
-        pinMode(RX, bitRead(_config, 2) ? INPUT : OUTPUT);
-        pinMode(TX, bitRead(_config, 3) ? INPUT : OUTPUT);
     break;
 
     default: break;
@@ -981,17 +880,17 @@ uint32_t    I2Cexpander::readWemos(void) {  //                        READ
         bitWrite(data, 2,::digitalRead(RX));
         bitWrite(data, 3,::digitalRead(TX));
     break;
+    case I2Cexpander::WEMOS_C:
+        bitWrite(data, 0,::digitalRead(D0));
+        bitWrite(data, 1,::digitalRead(D7));
+        bitWrite(data, 2,::digitalRead(RX));
+        bitWrite(data, 3,::digitalRead(TX));
+    break;
     case I2Cexpander::WEMOS_MATRIX:
         bitWrite(data, 0,::digitalRead(D3));
         bitWrite(data, 1,::digitalRead(D4));
         bitWrite(data, 2,::digitalRead(D5));
         bitWrite(data, 3,::digitalRead(D6));
-    break;
-    case I2Cexpander::WEMOS:
-        bitWrite(data, 0,::digitalRead(D0));
-        bitWrite(data, 1,::digitalRead(D7));
-        bitWrite(data, 2,::digitalRead(RX));
-        bitWrite(data, 3,::digitalRead(TX));
     break;
 
     default: break;
@@ -1013,17 +912,17 @@ void I2Cexpander::writeWemos(uint32_t data) { //                   WRITE
         writeif(RX, data, 2);
         writeif(TX, data, 3);
     break;
+    case I2Cexpander::WEMOS_C:
+        writeif(D0, data, 0);
+        writeif(D7, data, 1);
+        writeif(RX, data, 2);
+        writeif(TX, data, 3);
+    break;
     case I2Cexpander::WEMOS_MATRIX:
         writeif(D3, data, 0);
         //writeif(D4, data, 1);
         //writeif(D5, data, 2);
         //writeif(D6, data, 3);
-    break;
-    case I2Cexpander::WEMOS:
-        writeif(D0, data, 0);
-        writeif(D7, data, 1);
-        writeif(RX, data, 2);
-        writeif(TX, data, 3);
     break;
 
     default: break;
