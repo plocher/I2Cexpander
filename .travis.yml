@@ -28,6 +28,7 @@ install:
    - arduino --install-library "elapsedMillis"
 
 script:
+   - export MAIN_PLATFORMS='declare -A main_platforms=( [uno]="arduino:avr:uno" [zero]="arduino:samd:arduino_zero_native" [esp8266]="esp8266:esp8266:huzzah:eesz=4M3M,xtal=80" [leonardo]="arduino:avr:leonardo"  [mega2560]="arduino:avr:mega:cpu=atmega2560"  )'
    - build_main_platforms
 
 # Generate and deploy documentation
