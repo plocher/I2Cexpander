@@ -29,14 +29,21 @@ void setup()
     }
     // .init(addr, type, channel)
     m[ 7].init(1, I2Cexpander::PCF8591,  0x03); // R  Background/horizon
+    /* FALLTHRU */
     m[ 6].init(1, I2Cexpander::PCF8591,  0x02); // G
+    /* FALLTHRU */
     m[ 5].init(1, I2Cexpander::PCF8591,  0x01); // B
+    /* FALLTHRU */
     m[ 4].init(1, I2Cexpander::PCF8591,  0x00); // W
-    
+    /* FALLTHRU */
     m[ 3].init(0, I2Cexpander::PCF8591,  0x03); // R  Foreground/overhead
+    /* FALLTHRU */
     m[ 2].init(0, I2Cexpander::PCF8591,  0x02); // G
+    /* FALLTHRU */
     m[ 1].init(0, I2Cexpander::PCF8591,  0x01); // B
+    /* FALLTHRU */
     m[ 0].init(0, I2Cexpander::PCF8591,  0x00); // W
+    /* FALLTHRU */
 }
 
 void loop() {
