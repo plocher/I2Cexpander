@@ -177,6 +177,17 @@ uint8_t  I2Cexpander::digitalRead(uint8_t dataPin) {
     return bitRead(_current, dataPin) ? HIGH : LOW; 
 }
 
+bool  I2Cexpander::changed() {
+    if (I2Cexpander::_firsttime) {
+        I2Cexpander::_firsttime = 0;
+        I2Cexpander::_last = ~I2Cexpander::_current;  // force a true response the first time thru...
+    }
+    if ((I2Cexpander::_chip == I2Cexpander::PCF8591) || (I2Cexpander::_chip == I2Cexpander::PCA9685)) {
+        return ((I2Cexpander::_current) != (I2Cexpander::_last));  // no I/O direction mask
+    }
+    return ((I2Cexpander::_current & I2Cexpander::_config) != (I2Cexpander::_last & I2Cexpander::_config));
+};
+
 
 void I2Cexpander::printData(uint32_t data) {
     if (_size == B4)        {

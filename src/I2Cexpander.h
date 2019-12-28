@@ -164,12 +164,7 @@ public:
         @brief  Have any INPUT bits changed since the last "read()"?
         @return TRUE if something changed.
     */
-    boolean  changed()          { if (_firsttime) { _firsttime = 0; _last = ~_current; } // force changed() to trigger
-                                  if ((_chip == PCF8591) || (_chip == PCA9685)) {
-									  return ((I2Cexpander::_current) != (I2Cexpander::_last));
-								  }
-								  return ((I2Cexpander::_current & I2Cexpander::_config) != (I2Cexpander::_last & I2Cexpander::_config));
-                                };
+    bool  changed();
     /**
      * collection point for bits to-be-written
      */
@@ -183,8 +178,6 @@ public:
     /** The number of bits managed by an expander device. */
     enum IOSize {
       B_UNKNOWN =  0,   ///< Usually an error...
-      B1        =  1,   ///< Single bit (not used)
-      B2        =  2,   ///< Dual bit (not used)
       B4        =  4,   ///< 4-bit - Virtual expanders (aka MCU pins)
       B6        =  6,   ///< 6-bit - potentially used for some virtual expanders
       B8        =  8,   ///< 8-bit values
@@ -229,6 +222,20 @@ public:
       WEMOS_MATRIX,         ///< 4x Bits GPIO   4,  2, 14, 12    Pins D3 [D4 D5 D6] used by LEDCONTROL
 
     };
+
+ private:
+    uint8_t  _size;         ///< How many bits?
+    uint8_t  _chip;         ///< device_type
+    uint8_t  _address;      ///< Sequential address
+    uint8_t  _i2c_address;  ///< Real I2C address
+    uint16_t _config;       ///< per-device-type configuration info
+    uint32_t _current;      ///< current "read" cache
+    uint32_t _last;         ///< last "read"
+    uint32_t _lastw;        ///< last "write"
+    bool     _firsttime;    ///< private flag for changed() to force an update on first check
+    boolean _debounce;      ///< should read() ensure noise-free inputs?
+
+
 
     /// Many I2C devices are register compatible with the 9555...
     enum PCA9555Registers {
@@ -296,7 +303,7 @@ public:
 		PCA9685_MODE2_OEHIZ     = 0x02,
 		PCA9685_MODE2_OEDRV     = 0x01,
 		PCA9685_MODE2_OEOFF     = 0x00,
-		
+
 		PCA9685_LED0			= 0x00,	// 12 bit values
 		PCA9685_LED1,
 		PCA9685_LED2,
@@ -325,18 +332,7 @@ public:
       base8591     = 0x48,
 	  base9685     = 0x40
     };
-    
- //private:
-    uint8_t  _size;         ///< How many bits?
-    uint8_t  _chip;         ///< device_type
-    uint8_t  _address;      ///< Sequential address
-    uint8_t  _i2c_address;  ///< Real I2C address
-    uint16_t _config;       ///< per-device-type configuration info
-    uint32_t _current;      ///< current "read" cache
-    uint32_t _last;         ///< last "read"
-    uint32_t _lastw;        ///< last "write"
-    bool     _firsttime;    ///< private flag for changed() to force an update on first check
-    boolean _debounce;      ///< should read() ensure noise-free inputs?
+
 
     /**
      * Print an item in binary: xxxxxxxx_xxxxxxxx
