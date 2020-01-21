@@ -1,6 +1,11 @@
 /*
  *  Test harness code for I2C extender
  *
+ *  Circuit:  A standard Arduino with
+ *  2x I2C-8574 cards https://spcoast.github.io/pages/I2C-8574.html   and
+ *  4x I2C-7311 cards https://spcoast.github.io/pages/I2C-7311.html
+ *  for a total of 112 I/O points that can be controlled
+ *
  *  Copyright (c) 2014 John Plocher, released under the terms of the MIT License (MIT)
  */
 
@@ -10,7 +15,7 @@
 #define Dc 40   // Delay for cylon...
 #define Dl 1000 // Delay for ladder...
 
-#define NUMPORTS 16+4
+#define NUMPORTS 12 // 0..(NUMPORTS - 1)
 I2Cexpander m[NUMPORTS];
 
 void turnAllOff() {
@@ -70,39 +75,34 @@ void ladder(int iterations) {
     }
 }
 
+#define CONFIG_TURTLE   B0111  // Turtle Turnout Control - 1 out (Motor), 3 in (Occupied, Normal, Diverging)
 void setup()
 {
     for (int x = 0; x < NUMPORTS; x++) {
         m[x]       = I2Cexpander();
     }
     Wire.begin();
-    switch (NUMPORTS) {                      // 0 = output bit, 1=input
+    // MAX731x shares I2C address range with the 8475's
+    // MAX731x #8-12 have the same addresses as PCF8574 #0-7 and
+    // MAX731x #20-27 overlap with the PCA8574A's
+    m[11].init(3, I2Cexpander::MAX731x,  B0);         // 16 bits of output
+    m[10].init(2, I2Cexpander::MAX731x,  0x0000);     // 16 bits of output
+    m[ 9].init(1, I2Cexpander::MAX731x,  B1111111111111111);  // 16 bits of inputs
+    m[ 8].init(0, I2Cexpander::MAX731x,  0xFFFF);     // also 16 inputs
 
-        case 20: m[19].init(7, I2Cexpander::PCF8574,  B0);/* FALLTHRU */
-        case 19: m[18].init(6, I2Cexpander::PCF8574,  B0);/* FALLTHRU */
-        case 18: m[17].init(7, I2Cexpander::PCF8574A, B0);/* FALLTHRU */
-        case 17: m[16].init(6, I2Cexpander::PCF8574A, B0);/* FALLTHRU */
-        
-        case 16: m[15].init(5, I2Cexpander::PCF8574,  B0);/* FALLTHRU */
-        case 15: m[14].init(4, I2Cexpander::PCF8574,  B0);/* FALLTHRU */
-        case 14: m[13].init(5, I2Cexpander::PCF8574A, B0);/* FALLTHRU */
-        case 13: m[12].init(4, I2Cexpander::PCF8574A, B0);/* FALLTHRU */
-        
-        case 12: m[11].init(3, I2Cexpander::PCF8574,  B0);/* FALLTHRU */
-        case 11: m[10].init(2, I2Cexpander::PCF8574,  B0);/* FALLTHRU */
-        case 10: m[ 9].init(3, I2Cexpander::PCF8574A, B0);/* FALLTHRU */
-        case 9:  m[ 8].init(2, I2Cexpander::PCF8574A, B0);/* FALLTHRU */
-        
-        case 8:  m[ 7].init(1, I2Cexpander::PCF8574A, B0);/* FALLTHRU */
-        case 7:  m[ 6].init(1, I2Cexpander::PCF8574,  B0);/* FALLTHRU */
-        case 6:  m[ 5].init(0, I2Cexpander::PCF8574A, B0);/* FALLTHRU */
-        case 5:  m[ 4].init(0, I2Cexpander::PCF8574,  B0);/* FALLTHRU */
+    // 8475's come in two flavors, each with its own I2C address range
+    // so each can use the same sequence range of 0..7
+    // each I2C-8574 card has one of each, so init them in pairs:
+    m[ 7].init(1, I2Cexpander::PCF8574A, B11111111);  // 8x inputs
+    m[ 6].init(1, I2Cexpander::PCF8574,  (CONFIG_TURTLE << 4) | CONFIG_TURTLE);  // doesn't need to be hardcoded
 
-        case 4:  m[ 3].init(0, I2Cexpander::ARDIO_D,  B0);/* FALLTHRU */
-        case 3:  m[ 2].init(0, I2Cexpander::ARDIO_C,  B0);/* FALLTHRU */
-        case 2:  m[ 1].init(0, I2Cexpander::ARDIO_B,  B0);/* FALLTHRU */
-        case 1:  m[ 0].init(0, I2Cexpander::ARDIO_A,  B0);/* FALLTHRU */
-    }
+    m[ 5].init(0, I2Cexpander::PCF8574A, B0);         // 8-bits output
+    m[ 4].init(0, I2Cexpander::PCF8574,  B0);         // 8-bits output
+
+    m[ 3].init(0, I2Cexpander::ARDIO_D,  B0);
+    m[ 2].init(0, I2Cexpander::ARDIO_C,  B0);
+    m[ 1].init(0, I2Cexpander::ARDIO_B,  B0);
+    m[ 0].init(0, I2Cexpander::ARDIO_A,  B0);
 }
 
 void loop()

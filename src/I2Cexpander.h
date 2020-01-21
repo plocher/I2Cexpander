@@ -58,12 +58,13 @@ public:
         @brief  Initialize the I2C expander device.
                 Usually called in the setup() routine for a one-time initialization.
         @param    address
-                  The zero-based chip sequence number.
+                  Either a zero-based chip sequence number OR the real I2C address
                   Instead of remembering the address ranges used by the various I2C devices,
-                  the library does it for you, and will calculate the I2C address based on this value.
+                  the library can do it for you, and will calculate the I2C address based on this value.
                   For example, an 8-bit 8574 starts at I2C address 0x20, bit the -A version
                   starts at 0x38.  In either case, here you would simply pass [0,1,2,3,4,5,6,7]
                   to the init function and it will translate depending on the device type.
+                  The code uses a heuristic:  if given address < device_base_address, add the base...
         @param    device_type
                   The manufacturer's name for the device [MCP23016, PCF8574, MAX7311, ...]
                   or a virtual name for the onboard MCU pins [ARDIO_A, WEMOS_C, ...]
@@ -74,7 +75,7 @@ public:
         @param    debounce
                   For bit-I/O, ensure that 2x readings are the same before noting a pin change.
     */
-    void     init(uint16_t address, uint16_t device_type, uint16_t config, boolean debounce=false);
+    void     init(size_t address, uint16_t device_type, uint16_t config, boolean debounce=false);
 
     /*!
         @brief  Arduino compatibility routine.
@@ -189,8 +190,12 @@ public:
     enum ExpanderType {
       IGNORE    =  0,       ///< device is managed outside of this library...
       I2CLCD    =  0,       ///< ... handled elsewhere
-      PCA9555   =  1,       ///< Bits 0  1  2  3  4  5  6  7  8   9  10  11  12  13  14  15  16
+      BUILTIN   =  1,       ///< Used by CMRI autoconf routines
+      BIT,                  ///< Also used by autoconf routines, not by I2Cexpander...
+      BYTE,                 ///< Also used by autoconf routines, not by I2Cexpander...
+      PCA9555,              ///< Bits 0  1  2  3  4  5  6  7  8   9  10  11  12  13  14  15  16
       MCP23016,             ///< Bits 0  1  2  3  4  5  6  7  8   9  10  11  12  13  14  15  16
+      MCP23017,             ///< Bits 0  1  2  3  4  5  6  7  8   9  10  11  12  13  14  15  16
       PCF8574,              ///< Bits 0  1  2  3  4  5  6  7  8
       PCF8574A,             ///< Bits 0  1  2  3  4  5  6  7  8
     // DAC/ADC chip
@@ -203,7 +208,7 @@ public:
 	// LED PWM Controller
 	  PCA9685,              ///< 16 bit PWM controller
 
-	  // Virtual Expanders - expose the pins on the MCU
+	  // Virtual Expander - expose the pins on the MCU
 	  // These tend to be 4-bit "devices" to match the IO4 Architecture used
 	  // by the rest of the SPCoast interface boards.
 // ARDUINO_AVR_DUEMILANOVE - built-in Arduino ports, skipping RX/TX, Lnet RX/TX and I2C pins
@@ -220,13 +225,15 @@ public:
       WEMOS_B,              ///< 4x Bits GPIO  12, 13,  3,  1    Pins D6 D7 RX TX
       WEMOS_C,              ///< 4x Bits GPIO  16, 13,  3,  1    Pins D0 D7 RX TX
       WEMOS_MATRIX,         ///< 4x Bits GPIO   4,  2, 14, 12    Pins D3 [D4 D5 D6] used by LEDCONTROL
+// cpNode from MRCS
+      CPNODE_LOW,           ///< 8x Bits GPIO   4,  5,  6,  7,  8,  9, 10, 11
+      CPNODE_HIGH,          ///< 8x Bits GPIO  12, 13, A0, A1, A2, A3, A4, A5
 
     };
 
  private:
     uint8_t  _size;         ///< How many bits?
     uint8_t  _chip;         ///< device_type
-    uint8_t  _address;      ///< Sequential address
     uint8_t  _i2c_address;  ///< Real I2C address
     uint16_t _config;       ///< per-device-type configuration info
     uint32_t _current;      ///< current "read" cache
@@ -244,6 +251,32 @@ public:
 		PCA9555_INVERT =  4,
 		PCA9555_CONFIG =  6
     };
+
+    enum MCP23017Registers {
+        MCP23017_IODIRA   = 0x00,
+        MCP23017_IODIRB   = 0x01,
+        MCP23017_IPOLA    = 0x02,
+        MCP23017_IPOLB    = 0x03,
+        MCP23017_GPINTENA = 0x04,
+        MCP23017_GPINTENB = 0x05,
+        MCP23017_DEFVALA  = 0x06,
+        MCP23017_DEFVALB  = 0x07,
+        MCP23017_INTCONA  = 0x08,
+        MCP23017_INTCONB  = 0x09,
+        MCP23017_IOCONA   = 0x0A,
+        MCP23017_IOCONB   = 0x0B,
+        MCP23017_GPPUA    = 0x0C,
+        MCP23017_GPPUB    = 0x0D,
+        MCP23017_INTFA    = 0x0E,
+        MCP23017_INTFB    = 0x0F,
+        MCP23017_INTCAPA  = 0x10,
+        MCP23017_INTCAPB  = 0x11,
+        MCP23017_GPIOA    = 0x12,
+        MCP23017_GPIOB    = 0x13,
+        MCP23017_OLATA    = 0x14,
+        MCP23017_OLATB    = 0x15,
+    };
+
 
     /**
         The PCF8591 is a single-chip, single-supply low-power 8-bit CMOS data acquisition
@@ -322,11 +355,24 @@ public:
 		PCA9685_LED15
 	};
 
-	/// I2C base addresses for each chip family
+	/**
+	 * 	I2C base addresses for each chip family
+	 *  Note that I2C addresses have an implied "bit0" used for R/!W control, and
+	 *  the various Data sheets are confusing when it comes to the address.
+	 *  The Arduino Wire API considers the address to be WITHOUT the R/!W bit attached,
+	 *  and it will shift the given address over by 1 bit position when it is used.
+     *
+     * A data sheet (like the TI one for the PCF8574 will say the first address is 0x40/0x41
+     * for Writing/Reading.  In your Arduino code, you would shift this address right one bit position
+     *     ArduinoAddress = (DatasheetAddress >> 1)
+     *
+     *  in this case, the range 0x40-0x4E becomes 0x20-0x2E
+	 */
     enum BaseAddress {
       base731x     = 0x10,  // has 2x contiguous address ranges: 0x10-0x2F and 0x50-0x6F, for 64x chips...
       base9555     = 0x20,
       base23016    = 0x20,
+      base23017    = 0x20,
       base8574A    = 0x38,
       base8574     = 0x20,
       base8591     = 0x48,
@@ -339,13 +385,13 @@ public:
      * @param data
      */
 	void printData(uint32_t data);
-
+public:
 	/**
 	 * Internal debugging helper - print info about device along with some tag string...
 	 * @param tag
 	 */
 	void printString(const char *tag);
-
+private:
 	/**
 	 * underlying dispatch routine for reading an expander
 	 * @return data from device
@@ -362,44 +408,47 @@ public:
     /// Implementation details for each device type
 
 
-    /// 8-bit devices, such as the 8574 and 8574A
     /**
-     * initialize 8-bit expanders
+     *  8-bit expanders
      *
      * @param i2caddr
      * @param config
      */
     void        init8      (uint8_t i2caddr, uint16_t config);
-    /**
-     * write 8-bits
-     * @param data to be written
-     */
-    void        write8     (uint32_t data);
-    /**
-     * read 8-bits
-     * @return  data read from device
-     */
-    uint32_t    read8      (void);
+    void        write8     (uint32_t data);         ///< write 8-bits of data
+    uint32_t    read8      (void);                  ///< Read 8-bits of data
 
+    void        init8574A(uint8_t i2caddr, uint16_t dir);
+    void        init8574(uint8_t i2caddr, uint16_t dir);
 
     /// 16-bit devices based on the 9555
 
     /**
-     * initialize 16-bit expanders
+     * 16-bit 9555 expanders
      * @param i2caddr
      * @param config
      */
     void        init9555     (uint8_t i2caddr, uint16_t config);
+    void        init9555_compat(uint8_t i2caddr, uint16_t dir);
+    void        write9555    (uint32_t data);       ///< Write 16 bits of data
+    uint32_t    read9555     (void);                ///< Read 16 bits of data
+
     /**
-     * Write 16 bits
-     * @param data
+     * 16-bit 23016 expanders
+     * @param i2caddr
+     * @param config
      */
-    void        write9555    (uint32_t data);
+    void        init23016(uint8_t i2caddr, uint16_t dir);
+
     /**
-     * read 16 bits
-     * @return data read from device
+     * 16-bit 23017 expanders
+     * @param i2caddr
+     * @param config
      */
-    uint32_t    read9555     (void);
+    void        init23017(uint8_t i2caddr, uint16_t dir);
+    void        write23017    (uint32_t data);       ///< Write 16 bits of data
+    uint32_t    read23017(void);                     ///< Read 16 bits of data
+
 
     /// LED controller
 
@@ -474,6 +523,11 @@ public:
     void        initWemos (void);  ///< virtual expanders WEMOS_A, WEMOS_B, WEMOS_C
     uint32_t    readWemos (void);
     void        writeWemos(uint32_t data);
+#endif
+#if defined(ARDUINO_AVR_LEONARDO)  // standin for BBLeo
+    void        initBBLeo (void);  ///< virtual expanders CPNODE_LOW & CPNODE_HIGH
+    uint32_t    readBBLeo (void);
+    void        writeBBLeo(uint32_t data);
 #endif
 
 };

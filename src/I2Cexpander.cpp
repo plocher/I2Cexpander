@@ -45,7 +45,7 @@
     </pre>
 
     The list of supported I2C expanders is
-    <pre>
+    @code
 
           PCA9555       // Bits 0  1  2  3  4  5  6  7  8   9  10  11  12  13  14  15  16
           MCP23016      // Bits 0  1  2  3  4  5  6  7  8   9  10  11  12  13  14  15  16
@@ -59,22 +59,27 @@
 
         // if defined(ARDUINO_AVR_DUEMILANOVE)
           // built-in Arduino ports, skipping RX/TX, Lnet RX/TX and I2C pins
-          ARDIO_A       // Bits D2   D3  D4   D5 - low digital
+          ARDIO_A       // Pins D2   D3  D4   D5   - low digital
           ARDIO_B       //      D6   D9  D10  D11  - high digital
-          ARDIO_C       //      D12  D13 A0   A1  - mixed, digital and analog
-          ARDIO_D       //      A2   A3  A6  A7   - analog (A6 & A7 are input only)
+          ARDIO_C       //      D12  D13 A0   A1   - mixed, digital and analog
+          ARDIO_D       //      A2   A3  A6   A7   - analog (A6 & A7 are input only)
         // endif
         // if defined(SPARK_CORE) // Built in Photon Ports
-          PHOTON_A      //      D2, D3, D4,  D5,  -- -- -- --
+          PHOTON_A      // Pins D2, D3, D4,  D5,  -- -- -- --
           PHOTON_B      //      D6, D7, A0,  A1,  -- -- -- --
           PHOTON_C      //      A2, A3, DAC, WKP, -- -- -- --
         // endif
         // if defined(ARDUINO_ESP8266_WEMOS_D1MINI)
-          WEMOS_A       //      GPIO   4,  0,  2, 14    Pins D2 D3 D4 D5
-          WEMOS_B       //      GPIO  12, 13,  3,  1    Pins D6 D7 RX TX
-          WEMOS_C       //      GPIO  16, 13,  3,  1    Pins D0 D7 RX TX
+          WEMOS_A       // Pins D2 D3 D4 D5     GPIO  4,  0,  2, 14
+          WEMOS_B       //      D6 D7 RX TX          12, 13,  3,  1
+          WEMOS_C       //      D0 D7 RX TX          16, 13,  3,  1 // Alternate
         // endif
-    </pre>
+        // if defined(ARDUINO_AVR_LEONARDO)
+                                // 0 & 1 are CMRI Serial, 2 & 3 are I2C
+          CPNODE_LOW,           ///< 8x Bits GPIO   4,  5,  6,  7,  8,  9, 10, 11
+          CPNODE_HIGH,          ///< 8x Bits GPIO  12, 13, A0, A1, A2, A3, A4, A5
+        // endif
+   @endcode
 
    @section dependencies Dependencies
 
@@ -104,10 +109,9 @@
 /**
  * Library version
  */
-const char *I2Cexpander::version = "2.0.0";
+const char *I2Cexpander::version = "2.0.2";
 
 I2Cexpander::I2Cexpander() {
-    _address     = -1;
     _chip        = -1;
     _config      = -1;   
     _last        = -1;
@@ -119,16 +123,15 @@ I2Cexpander::I2Cexpander() {
     next         = 0;
     debugflag    = 0;
 }
-void I2Cexpander::init(uint16_t address, uint16_t device_type, uint16_t config, boolean debounce /* == false */ ) {
+void I2Cexpander::init(size_t address, uint16_t device_type, uint16_t config, boolean debounce /* == false */ ) {
 #ifdef I2C_EXTENDER_DEBUG
-    Serial.print("I2Cexpander:init(");
-    Serial.print(address, DEC); Serial.print(", ");
-    Serial.print(device_type, DEC);    Serial.print(", ");
-    Serial.print(config, DEC);  Serial.print(", ");
-    Serial.print("debounce "); Serial.print(_debounce ? "on" : "off");
+    Serial.print("I2Cexpander:init(addr=");
+    Serial.print(address, DEC); Serial.print(", type=");
+    Serial.print(device_type, DEC);    Serial.print(", config=0x");
+    Serial.print(config, HEX);  Serial.print(", ");
+    Serial.print("debounce "); Serial.print(debounce ? "on" : "off");
     Serial.print(")\n");
 #endif  
-    _address     = address;
     _chip        = device_type;
     _config      = config;
     _i2c_address = -1; // default
@@ -137,19 +140,19 @@ void I2Cexpander::init(uint16_t address, uint16_t device_type, uint16_t config, 
     Wire.setClock(400000UL);
 
     switch (_chip) {
-        case I2Cexpander::MAX731x:    _size = B16; init731x(            _address, _config);  break;
-        case I2Cexpander::PCA9555:    _size = B16; init9555(base9555  + _address, _config);  break;
-        case I2Cexpander::MCP23016:   _size = B16; init9555(base23016 + _address, _config);  break;
-        case I2Cexpander::PCF8574A:   _size = B8;  init8(base8574A    + _address, _config);  break;
-        case I2Cexpander::PCF8574:    _size = B8;  init8(base8574     + _address, _config);  break;
-
-        case I2Cexpander::PCF8591:    _size = B32; init8591(base8591  + _address, _config);  break;  // _config is unused
-        case I2Cexpander::PCA9685:    _size = B16; init9685(base9685  + _address, _config);  break;  // _config is used to determine which LED channel ...
+        case I2Cexpander::MAX731x:    _size = B16; init731x( address, _config);  break;
+        case I2Cexpander::PCA9555:    _size = B16; init9555( address, _config);  break;
+        case I2Cexpander::MCP23016:   _size = B16; init23016(address, _config);  break;
+        case I2Cexpander::MCP23017:   _size = B16; init23017(address, _config);  break;
+        case I2Cexpander::PCF8574A:   _size = B8;  init8574A(address, _config);  break;
+        case I2Cexpander::PCF8574:    _size = B8;  init8574( address, _config);  break;
+        case I2Cexpander::PCF8591:    _size = B32; init8591( address, _config);  break;  // _config is unused
+        case I2Cexpander::PCA9685:    _size = B16; init9685( address, _config);  break;  // _config is used to determine which LED channel ...
 #if defined(ARDUINO_AVR_DUEMILANOVE)
         case I2Cexpander::ARDIO_A:
         case I2Cexpander::ARDIO_B:
         case I2Cexpander::ARDIO_C:
-        case I2Cexpander::ARDIO_D:    initArduino(); break;
+        case I2Cexpander::ARDIO_D:      initArduino(); break;
 #endif
 #if defined(SPARK_CORE)
         case I2Cexpander::PHOTON_A:
@@ -162,7 +165,14 @@ void I2Cexpander::init(uint16_t address, uint16_t device_type, uint16_t config, 
         case I2Cexpander::WEMOS_MATRIX:
         case I2Cexpander::WEMOS:        initWemos(); break;
 #endif
+#if defined(ARDUINO_AVR_LEONARDO)
+        case I2Cexpander::CPNODE_LOW:
+        case I2Cexpander::CPNODE_HIGH:  initBBLeo(); break;
+#endif
         case IGNORE:
+        case BUILTIN:
+        case BIT:
+        case BYTE:
         default:
             _size=0; break;
     }
@@ -188,30 +198,17 @@ bool  I2Cexpander::changed() {
     return ((I2Cexpander::_current & I2Cexpander::_config) != (I2Cexpander::_last & I2Cexpander::_config));
 };
 
-
-void I2Cexpander::printData(uint32_t data) {
-    if (_size == B4)        {
-							  Serial.print((byte)(data >>  0) & 0x0F, BIN);
-						    }
-    else if (_size == B8)        {
-							  Serial.print((byte)(data >>  0) & 0xFF, BIN);
-						    }
-    else if (_size == B16)  { 
-							  Serial.print((byte)(data >>  8) & 0xFF, BIN); Serial.print("_");
-							  Serial.print((byte)(data >>  0) & 0xFF, BIN); 
-						  	}
-    else if (_size == B32)  { 
-							  Serial.print((byte)(data >> 24) & 0xFF, BIN); Serial.print("_");
-							  Serial.print((byte)(data >> 16) & 0xFF, BIN); Serial.print("_");
-							  Serial.print((byte)(data >>  8) & 0xFF, BIN); Serial.print("_");
-							  Serial.print((byte)(data >>  0) & 0xFF, BIN); 
-						  	}
-    else                    { Serial.print("unknown data size: "); Serial.print(_size, DEC); Serial.print(", data: "); Serial.print(data, BIN);}
+void I2Cexpander::printData(uint32_t d) {
+    for (int b = _size; b >= 0; b--) {
+        Serial.print(bitRead(d, b) ? "1" : "0");
+        if ( (b < _size) && ( b == 8 || b == 16 || b == 24 )) {
+            Serial.print("_");
+        }
+    }
 }
 
 void I2Cexpander::printString(const char *tag) {
 	Serial.print(tag);
-    Serial.print(" addr=0x");         Serial.print(_address,   HEX);
     Serial.print(" i2c_address=0x");  Serial.print(_i2c_address,   HEX);
     Serial.print(", chip=");          Serial.print(_chip,      DEC);
     Serial.print(", conf=");          Serial.print(_config,    DEC);
@@ -236,17 +233,18 @@ uint32_t I2Cexpander::_read() {
     uint32_t data = 0;
     int error = 0;
 #ifdef I2C_EXTENDER_DEBUG
-    if (debugflag) {
-        Serial.print("I2C:read(a=0x"); Serial.print(_address, HEX); 
+    //if (debugflag) {
+        Serial.print("I2C:read(a=0x"); Serial.print(_i2c_address, HEX);
         Serial.print(", chip=");       Serial.print(_chip,    DEC); 
         Serial.print(", conf=0b");      Serial.print(_config,  BIN);
         Serial.print(") "); 
-    }
+    //}
 #endif
     switch (_chip) {
         case I2Cexpander::MAX731x:        data = read9555();   break; // 731x is same as 9555
         case I2Cexpander::PCA9555:        data = read9555();   break;
         case I2Cexpander::MCP23016:       data = read9555();   break;
+        case I2Cexpander::MCP23017:       data = read23017();   break;
         case I2Cexpander::PCF8574A:       data = read8();      break;
         case I2Cexpander::PCF8574:        data = read8();      break;
         case I2Cexpander::PCF8591:        data = read8591();   break;
@@ -267,12 +265,19 @@ uint32_t I2Cexpander::_read() {
         case I2Cexpander::WEMOS_MATRIX:
         case I2Cexpander::WEMOS:
         case I2Cexpander::WEMOS_A:
-        case I2Cexpander::WEMOS_B:      data = readWemos(); break;
+        case I2Cexpander::WEMOS_B:          data = readWemos(); break;
+#endif
+#if defined(ARDUINO_AVR_LEONARDO)
+        case I2Cexpander::CPNODE_LOW:
+        case I2Cexpander::CPNODE_HIGH:      data = readBBLeo(); break;
 #endif
 
         default:
             error = 1;
         case IGNORE:
+        case BUILTIN:
+        case BIT:
+        case BYTE:
             break;
     } 
     if (!error) {      
@@ -280,7 +285,7 @@ uint32_t I2Cexpander::_read() {
         I2Cexpander::_current = data;
     } 
 #ifdef I2C_EXTENDER_DEBUG
-    if (debugflag) {
+    //if (debugflag) {
         Serial.print(" => "); 
         if (error)              { Serial.print("Error"); }
         else if (_size == B8)   { 
@@ -298,63 +303,88 @@ uint32_t I2Cexpander::_read() {
 							  	}
         else                    { Serial.print("unknown data size: "); Serial.print(data, BIN);}
         Serial.print("\n");  
-    }
+    //}
 #endif
     return data;
 }
 
 void I2Cexpander::write(uint32_t data) {
 #ifdef I2C_EXTENDER_DEBUG
-    if (debugflag && (_lastw != data)) {
+    //if (debugflag && (_lastw != data)) {
 		printString("I2Cexpander::write([");
 		Serial.print("] data=");  
 		printData(data);
 		Serial.println(")");
-    }
+    //}
 #endif
 
     switch (_chip) {
-    case I2Cexpander::MAX731x:         write9555(data); break;  // 731x is same as 9555
-    case I2Cexpander::PCA9555:         write9555(data); break;
-    case I2Cexpander::MCP23016:        write9555(data); break;
-    case I2Cexpander::PCF8574A:        write8(data);    break;
-    case I2Cexpander::PCF8574:         write8(data);    break;
-    case I2Cexpander::PCF8591:         write8591(data); break;
-    case I2Cexpander::PCA9685:         write9685(data); break;
+        case I2Cexpander::MAX731x:         write9555(data); break;  // 731x is same as 9555
+        case I2Cexpander::PCA9555:         write9555(data); break;
+        case I2Cexpander::MCP23016:        write9555(data); break;
+        case I2Cexpander::MCP23017:        write23017(data);break;
+        case I2Cexpander::PCF8574A:        write8(data);    break;
+        case I2Cexpander::PCF8574:         write8(data);    break;
+        case I2Cexpander::PCF8591:         write8591(data); break;
+        case I2Cexpander::PCA9685:         write9685(data); break;
 
 #if defined(ARDUINO_AVR_DUEMILANOVE)
-    case I2Cexpander::ARDIO_A:
-    case I2Cexpander::ARDIO_B:
-    case I2Cexpander::ARDIO_C:
-    case I2Cexpander::ARDIO_D:        writeArduino(data); break;
+        case I2Cexpander::ARDIO_A:
+        case I2Cexpander::ARDIO_B:
+        case I2Cexpander::ARDIO_C:
+        case I2Cexpander::ARDIO_D:        writeArduino(data); break;
 #endif
 #if defined(SPARK_CORE)
-    case I2Cexpander::PHOTON_A:
-    case I2Cexpander::PHOTON_B:
-    case I2Cexpander::PHOTON_C:         writePhoton(data); break;
+        case I2Cexpander::PHOTON_A:
+        case I2Cexpander::PHOTON_B:
+        case I2Cexpander::PHOTON_C:         writePhoton(data); break;
 #endif
 #if defined(ARDUINO_ESP8266_WEMOS_D1MINI)
-    case I2Cexpander::WEMOS_MATRIX:
-    case I2Cexpander::WEMOS:
-    case I2Cexpander::WEMOS_A:
-    case I2Cexpander::WEMOS_B:          writeWemos(data); break;
+        case I2Cexpander::WEMOS_MATRIX:
+        case I2Cexpander::WEMOS:
+        case I2Cexpander::WEMOS_A:
+        case I2Cexpander::WEMOS_B:          writeWemos(data); break;
+#endif
+#if defined(ARDUINO_AVR_LEONARDO)
+        case I2Cexpander::CPNODE_LOW:
+        case I2Cexpander::CPNODE_HIGH:      writeBBLeo(data); break;
 #endif
 
-    case IGNORE:
-    default:  break;
+        case IGNORE:
+        case BUILTIN:
+        case BIT:
+        case BYTE:
+        default:  break;
     }
     _lastw = data;
 }
 
 /*
 ***************************************************************************
-**                                  8  b i t                             **
+**                                  8  b i t   8574                      **
 ***************************************************************************
  */
-
-void I2Cexpander::init8(uint8_t i2caddr, uint16_t config) {
+void I2Cexpander::init8574A(uint8_t i2caddr, uint16_t dir) {
+    uint8_t a;
+    if (i2caddr < base8574A) {
+        a = base8574A + i2caddr;
+    } else {
+        a = i2caddr;
+    }
+    I2Cexpander::init8(a, dir);
+}
+void I2Cexpander::init8574(uint8_t i2caddr, uint16_t dir) {
+    uint8_t a;
+    if (i2caddr < base8574) {
+        a = base8574 + i2caddr;
+    } else {
+        a = i2caddr;
+    }
+    I2Cexpander::init8(a, dir);
+}
+void I2Cexpander::init8(uint8_t i2caddr, uint16_t dir) {
     _i2c_address = i2caddr;
-    write8(config);
+    write8(dir);
 }
 
 uint32_t I2Cexpander::read8() {
@@ -378,11 +408,74 @@ void I2Cexpander::write8(uint32_t data) {
 
 /*
 ***************************************************************************
+**                                  16 b i t  23017                      **
+***************************************************************************
+ */
+void I2Cexpander::init23017(uint8_t i2caddr, uint16_t dir) {
+    if (i2caddr < base23017) {
+        _i2c_address = base23017 + i2caddr;
+    } else {
+        _i2c_address = i2caddr;
+    }
+    Wire.beginTransmission(i2caddr);
+    Wire.write(MCP23017_IODIRA);
+    Wire.write(0xff & dir);         // Low byte
+    Wire.endTransmission();
+
+    Wire.beginTransmission(i2caddr);
+    Wire.write(MCP23017_IODIRB);
+    Wire.write(0xff & (dir >> 8));  // High byte
+    Wire.endTransmission();
+}
+
+
+uint32_t I2Cexpander::read23017() {
+    uint32_t data = 0;
+    Wire.beginTransmission(_i2c_address);
+    Wire.write(MCP23017_GPIOA);
+    Wire.endTransmission();
+
+    Wire.requestFrom(_i2c_address, (uint8_t)2, (uint8_t)1);
+    data = Wire.read();
+    data |= (Wire.read() << 8);
+    return data;
+}
+
+void I2Cexpander::write23017(uint32_t data) {
+    data = data | _config;
+    Wire.beginTransmission(_i2c_address);
+    Wire.write(MCP23017_GPIOA);
+    Wire.write(0xff & data);  //  low byte
+    Wire.write(data >> 8);    //  high byte
+    Wire.endTransmission();
+}
+
+/*
+***************************************************************************
 **                                  16 b i t  9555                       **
 ***************************************************************************
  */
 
 void I2Cexpander::init9555(uint8_t i2caddr, uint16_t dir) {
+    uint8_t a;
+    if (i2caddr < base9555) {
+        a = base9555 + i2caddr;
+    } else {
+        a = i2caddr;
+    }
+    I2Cexpander::init9555_compat(a, dir);
+}
+void I2Cexpander::init23016(uint8_t i2caddr, uint16_t dir) {
+    uint8_t a;
+    if (i2caddr < base23016) {
+        a = base23016 + i2caddr;
+    } else {
+        a = i2caddr;
+    }
+    I2Cexpander::init9555_compat(a, dir);
+}
+
+void I2Cexpander::init9555_compat(uint8_t i2caddr, uint16_t dir) {
     _i2c_address = i2caddr;
     Wire.beginTransmission(i2caddr);
     Wire.write(PCA9555_CONFIG);
@@ -424,8 +517,12 @@ void I2Cexpander::write9555(uint32_t data) {
  */
 
 void I2Cexpander::init731x(uint8_t i2caddr, uint16_t dir) {
-    uint8_t a = (i2caddr < 0x20) ? base731x + i2caddr : base731x + 0x30 + i2caddr;
-    I2Cexpander::init9555(a, dir);
+    uint8_t a;
+    if (i2caddr < 0x20) {
+        a = (i2caddr < 0x20) ? base731x + i2caddr : base731x + 0x30 + i2caddr;
+    } else a = i2caddr;
+
+    I2Cexpander::init9555_compat(a, dir);
     
     Wire.beginTransmission(_i2c_address);
     Wire.write(0x0F);  // Config
@@ -464,13 +561,19 @@ void I2Cexpander::init731x(uint8_t i2caddr, uint16_t dir) {
  */
 
 void I2Cexpander::init9685(uint8_t i2caddr, uint16_t dir) {
-    _i2c_address = i2caddr;
-	Wire.beginTransmission(i2caddr);
+    uint8_t a;
+    if (i2caddr < base9685) {
+        a = i2caddr + base9685;
+    } else {
+        a = i2caddr;
+    }
+    _i2c_address = a;
+	Wire.beginTransmission(_i2c_address);
     Wire.write(PCA9685_MODE1);
     Wire.write(PCA9685_MODE1_RESTART | PCA9685_MODE1_AUTOINC | PCA9685_MODE1_ALLCALL);
     Wire.endTransmission();  
     delay(1);
-    Wire.beginTransmission(i2caddr);
+    Wire.beginTransmission(_i2c_address);
     Wire.write(PCA9685_MODE2);
     Wire.write(PCA9685_MODE2_TOTEM | PCA9685_MODE2_OEOFF);
     Wire.endTransmission();  
@@ -521,15 +624,21 @@ void I2Cexpander::write9685(uint32_t data) {
  */
 
 void I2Cexpander::init8591(uint8_t i2caddr, uint16_t dir) {
-    _i2c_address = i2caddr;
+    uint8_t a;
+    if (i2caddr < base8591) {
+        a = base8591 + i2caddr;
+    } else {
+        a = i2caddr;
+    }
+    _i2c_address = a;
 }
 
 uint32_t I2Cexpander::read8591() {
 	uint32_t result;
-	byte result1;
-	byte result2;
-	byte result3;
-	byte result4;
+	uint32_t result1;
+	uint32_t result2;
+	uint32_t result3;
+	uint32_t result4;
 	
     Wire.beginTransmission(_i2c_address);
     Wire.write(0x04);
@@ -621,13 +730,13 @@ void I2Cexpander::writeif(uint8_t port, uint32_t data, uint8_t bit) {
 #if defined(ARDUINO_AVR_DUEMILANOVE)
 /*
 ***************************************************************************
-**                                 A R D U I N O                         **
+**   Arduino Duemilanova                                                 **
 ***************************************************************************
  */
 
 void I2Cexpander::initArduino(void) {   //                             INIT
    switch (_chip) {
-// set Arduino I/O pin direction (1=OUTPUT, 0-INPUT)
+    // set Arduino I/O pin direction (1=OUTPUT, 0-INPUT)
     case I2Cexpander::ARDIO_A:  _size = B4;  
         pinMode(2,  bitRead(_config, 0) ? INPUT : OUTPUT);
         pinMode(3,  bitRead(_config, 1) ? INPUT : OUTPUT);
@@ -650,7 +759,7 @@ void I2Cexpander::initArduino(void) {   //                             INIT
         pinMode(A2, bitRead(_config, 0) ? INPUT : OUTPUT);
         pinMode(A3, bitRead(_config, 1) ? INPUT : OUTPUT);
         //      A6 and 
-        //      A7 are Analog IN, pinmode doesn't work with them
+        //      A7 are Analog IN only, pinmode doesn't work with them
     break;
     }
 }
@@ -690,32 +799,6 @@ return data;
 }
 
 void I2Cexpander::writeArduino(uint32_t data) { //             WRITE
-#ifdef I2C_EXTENDER_ONBOARD_DEBUG
-    if (debugflag) {
-        static uint32_t last = 0x1234;
-        if (data != last) {
-            Serial.print("I2C:writeArduino("); 
-            Serial.print("port=");   Serial.print(_chip, DEC);Serial.print(", ");
-            const __FlashStringHelper *s;
-            switch(_chip) {
-              case ARDIO_A:   s=F("ARDIO_A");   break;
-              case ARDIO_B:   s=F("ARDIO_B");   break;
-              case ARDIO_C:   s=F("ARDIO_C");   break;
-              case ARDIO_D:   s=F("ARDIO_D");   break;
-              case A:  s=F("A");  break;
-              case B:  s=F("B");  break;
-              case C:  s=F("C");  break;
-              default:        s=F("UNKNOWN");   break;
-            }
-            Serial.print(s);
-            Serial.print(", conf=0x");   Serial.print(_config,    HEX);
-            Serial.print(") data(");  
-            printData(data);
-            Serial.print(")\n");
-            last=data;
-        }
-    }
-#endif
     switch (_chip) {
     case I2Cexpander::ARDIO_A:        
          writeif( 2, data, 0);
@@ -750,7 +833,7 @@ void I2Cexpander::writeArduino(uint32_t data) { //             WRITE
 #if defined(SPARK_CORE)
 /*
 ***************************************************************************
-**                                   P H O T O N                         **
+**     Photon by Particle                                                **
 ***************************************************************************
  */
 void I2Cexpander::initPhoton(void) {    //                             INIT
@@ -837,7 +920,7 @@ void I2Cexpander::writePhoton(uint32_t data) { //                    WRITE
 #if defined(ARDUINO_ESP8266_WEMOS_D1MINI)
 /*
 ***************************************************************************
-**                      W e m o s  D 1  R 2                              **
+**   Wemos D1 R2                                                         **
 ***************************************************************************
       WEMOS_A,              //      GPIO   4,  0,  2, 14    Pins D2 D3 D4 D5
       WEMOS_B,              //      GPIO  12, 13,  3,  1    Pins D6 D7 RX TX
@@ -936,6 +1019,96 @@ void I2Cexpander::writeWemos(uint32_t data) { //                   WRITE
         //writeif(D6, data, 3);
     break;
 
+    default: break;
+    }
+}
+#endif
+
+#if defined(ARDUINO_AVR_LEONARDO)
+/*
+***************************************************************************
+**  BBLeo cpNode                                                         **
+***************************************************************************
+      CPNODE_LOW,           // 8x Bits GPIO   4,  5,  6,  7,  8,  9, 10, 11
+      CPNODE_HIGH,          // 8x Bits GPIO  12, 13, A0, A1, A2, A3, A4, A5
+ */
+void I2Cexpander::initBBLeo(void) {   //                             INIT
+    _size = B8;
+    switch (_chip) {
+    case I2Cexpander::CPNODE_LOW:
+        pinMode( 4, bitRead(_config, 0) ? INPUT : OUTPUT);
+        pinMode( 5, bitRead(_config, 1) ? INPUT : OUTPUT);
+        pinMode( 6, bitRead(_config, 2) ? INPUT : OUTPUT);
+        pinMode( 7, bitRead(_config, 3) ? INPUT : OUTPUT);
+        pinMode( 8, bitRead(_config, 4) ? INPUT : OUTPUT);
+        pinMode( 9, bitRead(_config, 5) ? INPUT : OUTPUT);
+        pinMode(10, bitRead(_config, 6) ? INPUT : OUTPUT);
+        pinMode(11, bitRead(_config, 7) ? INPUT : OUTPUT);
+    break;
+    case I2Cexpander::CPNODE_HIGH:
+        pinMode(12, bitRead(_config, 0) ? INPUT : OUTPUT);
+        pinMode(13, bitRead(_config, 1) ? INPUT : OUTPUT);
+        pinMode(A0, bitRead(_config, 2) ? INPUT : OUTPUT);
+        pinMode(A1, bitRead(_config, 3) ? INPUT : OUTPUT);
+        pinMode(A2, bitRead(_config, 4) ? INPUT : OUTPUT);
+        pinMode(A3, bitRead(_config, 5) ? INPUT : OUTPUT);
+        pinMode(A4, bitRead(_config, 6) ? INPUT : OUTPUT);
+        pinMode(A5, bitRead(_config, 7) ? INPUT : OUTPUT);
+    break;
+    default: break;
+    }
+}
+
+uint32_t    I2Cexpander::readBBLeo(void) {  //                        READ
+    uint32_t data = 0;
+    switch (_chip) {
+    case I2Cexpander::CPNODE_LOW:
+        bitWrite(data, 0,::digitalRead( 4));
+        bitWrite(data, 1,::digitalRead( 5));
+        bitWrite(data, 2,::digitalRead( 6));
+        bitWrite(data, 3,::digitalRead( 7));
+        bitWrite(data, 4,::digitalRead( 8));
+        bitWrite(data, 5,::digitalRead( 9));
+        bitWrite(data, 6,::digitalRead(10));
+        bitWrite(data, 7,::digitalRead(11));
+    break;
+    case I2Cexpander::CPNODE_HIGH:
+        bitWrite(data, 0,::digitalRead(12));
+        bitWrite(data, 1,::digitalRead(13));
+        bitWrite(data, 2,::digitalRead(A0));
+        bitWrite(data, 3,::digitalRead(A1));
+        bitWrite(data, 4,::digitalRead(A2));
+        bitWrite(data, 5,::digitalRead(A3));
+        bitWrite(data, 6,::digitalRead(A4));
+        bitWrite(data, 7,::digitalRead(A5));
+    break;
+    default: break;
+    }
+    return data;
+}
+
+void I2Cexpander::writeBBLeo(uint32_t data) { //                   WRITE
+    switch (_chip) {
+    case I2Cexpander::CPNODE_LOW:
+        writeif( 4, data, 0);
+        writeif( 5, data, 1);
+        writeif( 6, data, 2);
+        writeif( 7, data, 3);
+        writeif( 8, data, 4);
+        writeif( 9, data, 5);
+        writeif(10, data, 6);
+        writeif(11, data, 7);
+    break;
+    case I2Cexpander::CPNODE_HIGH:
+        writeif(12, data, 0);
+        writeif(13, data, 1);
+        writeif(A0, data, 2);
+        writeif(A1, data, 3);
+        writeif(A2, data, 4);
+        writeif(A3, data, 5);
+        writeif(A4, data, 6);
+        writeif(A5, data, 7);
+    break;
     default: break;
     }
 }
