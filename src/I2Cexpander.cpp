@@ -109,7 +109,7 @@
 /**
  * Library version
  */
-const char *I2Cexpander::version = "2.0.2";
+const char *I2Cexpander::version = "2.0.3";
 
 I2Cexpander::I2Cexpander() {
     _chip        = -1;
