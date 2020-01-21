@@ -426,6 +426,17 @@ void I2Cexpander::init23017(uint8_t i2caddr, uint16_t dir) {
     Wire.write(MCP23017_IODIRB);
     Wire.write(0xff & (dir >> 8));  // High byte
     Wire.endTransmission();
+
+    // enable 100k pullups on all inputs...
+    Wire.beginTransmission(i2caddr);
+    Wire.write(MCP23017_GPPUA);
+    Wire.write(0xff & dir);         // Low byte
+    Wire.endTransmission();
+
+    Wire.beginTransmission(i2caddr);
+    Wire.write(MCP23017_GPPUB);
+    Wire.write(0xff & (dir >> 8));  // High byte
+    Wire.endTransmission();
 }
 
 
