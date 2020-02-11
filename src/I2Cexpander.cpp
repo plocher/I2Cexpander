@@ -123,6 +123,24 @@ I2Cexpander::I2Cexpander() {
     next         = 0;
     debugflag    = 0;
 }
+
+I2Cexpander::I2Cexpander(I2Cexpander::ExpanderType device_type, size_t address, boolean debounce) {
+    _chip        = device_type;
+    _i2c_address = address;
+	_debounce    = debounce;
+
+    _config      = -1;
+    _last        = -1;
+    _firsttime   = 1;
+    _current     = -2;
+    _size        = B_UNKNOWN;
+    next         = 0;
+    debugflag    = 0;
+}
+void I2Cexpander::init(uint16_t config) {
+    init(_i2c_address, _chip, config, _debounce);
+}
+
 void I2Cexpander::init(size_t address, uint16_t device_type, uint16_t config, boolean debounce /* == false */ ) {
 #ifdef I2C_EXTENDER_DEBUG
     Serial.print("I2Cexpander:init(addr=");

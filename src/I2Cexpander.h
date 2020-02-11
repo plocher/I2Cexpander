@@ -48,11 +48,86 @@
 class I2Cexpander {
 public:
     static const char *version;
+    /** The number of bits managed by an expander device. */
+    enum IOSize {
+      B_UNKNOWN =  0,   ///< Usually an error...
+      B4        =  4,   ///< 4-bit - Virtual expanders (aka MCU pins)
+      B6        =  6,   ///< 6-bit - potentially used for some virtual expanders
+      B8        =  8,   ///< 8-bit values
+      B16       = 16,   ///< 16-bit
+      B32       = 32    ///< 32 bit
+    };
+
+    /** The devices understood by this library. */
+    enum ExpanderType {
+      IGNORE    =  0,       ///< device is managed outside of this library...
+      I2CLCD    =  0,       ///< ... handled elsewhere
+      BUILTIN   =  1,       ///< Used by CMRI autoconf routines
+      BIT,                  ///< Also used by autoconf routines, not by I2Cexpander...
+      BYTE,                 ///< Also used by autoconf routines, not by I2Cexpander...
+      FIRSTI2C,
+      PCA9555 = FIRSTI2C,   ///< Bits 0  1  2  3  4  5  6  7  8   9  10  11  12  13  14  15  16
+      MCP23016,             ///< Bits 0  1  2  3  4  5  6  7  8   9  10  11  12  13  14  15  16
+      MCP23017,             ///< Bits 0  1  2  3  4  5  6  7  8   9  10  11  12  13  14  15  16
+      PCF8574,              ///< Bits 0  1  2  3  4  5  6  7  8
+      PCF8574A,             ///< Bits 0  1  2  3  4  5  6  7  8
+    // DAC/ADC chip
+      PCF8591,              ///< 4 A-D converters, 1 D-A
+    // 16 bit MAX 3713
+      MAX731x,              ///< Bits 0  1  2  3  4  5  6  7  8   9  10  11  12  13  14  15  16
+	  MAX7311 = MAX731x,
+	  MAX7312 = MAX731x,
+	  MAX7313 = MAX731x,
+	// LED PWM Controller
+	  PCA9685,              ///< 16 bit PWM controller
+
+	  // Virtual Expander - expose the pins on the MCU
+	  // These tend to be 4-bit "devices" to match the IO4 Architecture used
+	  // by the rest of the SPCoast interface boards.
+// ARDUINO_AVR_DUEMILANOVE - built-in Arduino ports, skipping RX/TX, Lnet RX/TX and I2C pins
+      ARDIO_A,              ///< 4x Bits D2   D3  D4   D5 - low digital
+      ARDIO_B,              ///< 4x Bits D6   D9  D10  D11  - high digital
+      ARDIO_C,              ///< 4x Bits D12  D13 A0   A1  - mixed, digital and analog
+      ARDIO_D,              ///< 4x Bits A2   A3  A6  A7   - analog (A6 & A7 are input only)
+// SPARK_CORE - Built in Photon Ports
+      PHOTON_A,             ///< 4x Bits D2, D3, D4,  D5,  -- -- -- --
+      PHOTON_B,             ///< 4x Bits D6, D7, A0,  A1,  -- -- -- --
+      PHOTON_C,             ///< 4x Bits A2, A3, DAC, WKP, -- -- -- --
+// ARDUINO_ESP8266_WEMOS_D1MINI - Builtin Wemos ports
+      WEMOS_A,              ///< 4x Bits GPIO   4,  0,  2, 14    Pins D2 D3 D4 D5
+      WEMOS_B,              ///< 4x Bits GPIO  12, 13,  3,  1    Pins D6 D7 RX TX
+      WEMOS_C,              ///< 4x Bits GPIO  16, 13,  3,  1    Pins D0 D7 RX TX
+      WEMOS_MATRIX,         ///< 4x Bits GPIO   4,  2, 14, 12    Pins D3 [D4 D5 D6] used by LEDCONTROL
+// cpNode from MRCS
+      CPNODE_LOW,           ///< 8x Bits GPIO   4,  5,  6,  7,  8,  9, 10, 11
+      CPNODE_HIGH,          ///< 8x Bits GPIO  12, 13, A0, A1, A2, A3, A4, A5
+
+    };
+
     /*!
         @brief  I2Cexpander class Constructor.
                 No arguments so that it can be either statically initialized OR dynamic.
     */
     I2Cexpander(void);
+
+    /*!
+        Initialize what we can without knowing details of bit configuration
+        @param    address
+                  Either a zero-based chip sequence number OR the real I2C address
+                  Instead of remembering the address ranges used by the various I2C devices,
+                  the library can do it for you, and will calculate the I2C address based on this value.
+                  For example, an 8-bit 8574 starts at I2C address 0x20, bit the -A version
+                  starts at 0x38.  In either case, here you would simply pass [0,1,2,3,4,5,6,7]
+                  to the init function and it will translate depending on the device type.
+                  The code uses a heuristic:  if given address < device_base_address, add the base...
+        @param    device_type
+                  The manufacturer's name for the device [MCP23016, PCF8574, MAX7311, ...]
+                  or a virtual name for the onboard MCU pins [ARDIO_A, WEMOS_C, ...]
+                  The special type "IGNORE" can be used to document I2C addresses used elsewhere.
+        @param    debounce
+                  For bit-I/O, ensure that 2x readings are the same before noting a pin change.
+     */
+    I2Cexpander(ExpanderType device_type, size_t address, boolean debounce=false);
 
     /*!
         @brief  Initialize the I2C expander device.
@@ -76,6 +151,16 @@ public:
                   For bit-I/O, ensure that 2x readings are the same before noting a pin change.
     */
     void     init(size_t address, uint16_t device_type, uint16_t config, boolean debounce=false);
+
+
+    /*!
+        @brief  Initialize the I2C expander device.
+                Usually called in the setup() routine for a one-time initialization.
+        @param    config
+                  Usually, the Input-vs-Output pin direction settings, used on a device-by-device basis
+                  for device specific configuration.
+    */
+    void     init(uint16_t config);
 
     /*!
         @brief  Arduino compatibility routine.
@@ -176,60 +261,7 @@ public:
      */
     byte     debugflag;
 
-    /** The number of bits managed by an expander device. */
-    enum IOSize {
-      B_UNKNOWN =  0,   ///< Usually an error...
-      B4        =  4,   ///< 4-bit - Virtual expanders (aka MCU pins)
-      B6        =  6,   ///< 6-bit - potentially used for some virtual expanders
-      B8        =  8,   ///< 8-bit values
-      B16       = 16,   ///< 16-bit
-      B32       = 32    ///< 32 bit
-    };
 
-    /** The devices understood by this library. */
-    enum ExpanderType {
-      IGNORE    =  0,       ///< device is managed outside of this library...
-      I2CLCD    =  0,       ///< ... handled elsewhere
-      BUILTIN   =  1,       ///< Used by CMRI autoconf routines
-      BIT,                  ///< Also used by autoconf routines, not by I2Cexpander...
-      BYTE,                 ///< Also used by autoconf routines, not by I2Cexpander...
-      PCA9555,              ///< Bits 0  1  2  3  4  5  6  7  8   9  10  11  12  13  14  15  16
-      MCP23016,             ///< Bits 0  1  2  3  4  5  6  7  8   9  10  11  12  13  14  15  16
-      MCP23017,             ///< Bits 0  1  2  3  4  5  6  7  8   9  10  11  12  13  14  15  16
-      PCF8574,              ///< Bits 0  1  2  3  4  5  6  7  8
-      PCF8574A,             ///< Bits 0  1  2  3  4  5  6  7  8
-    // DAC/ADC chip
-      PCF8591,              ///< 4 A-D converters, 1 D-A
-    // 16 bit MAX 3713
-      MAX731x,              ///< Bits 0  1  2  3  4  5  6  7  8   9  10  11  12  13  14  15  16
-	  MAX7311 = MAX731x,
-	  MAX7312 = MAX731x,
-	  MAX7313 = MAX731x,
-	// LED PWM Controller
-	  PCA9685,              ///< 16 bit PWM controller
-
-	  // Virtual Expander - expose the pins on the MCU
-	  // These tend to be 4-bit "devices" to match the IO4 Architecture used
-	  // by the rest of the SPCoast interface boards.
-// ARDUINO_AVR_DUEMILANOVE - built-in Arduino ports, skipping RX/TX, Lnet RX/TX and I2C pins
-      ARDIO_A,              ///< 4x Bits D2   D3  D4   D5 - low digital
-      ARDIO_B,              ///< 4x Bits D6   D9  D10  D11  - high digital
-      ARDIO_C,              ///< 4x Bits D12  D13 A0   A1  - mixed, digital and analog
-      ARDIO_D,              ///< 4x Bits A2   A3  A6  A7   - analog (A6 & A7 are input only)
-// SPARK_CORE - Built in Photon Ports
-      PHOTON_A,             ///< 4x Bits D2, D3, D4,  D5,  -- -- -- --
-      PHOTON_B,             ///< 4x Bits D6, D7, A0,  A1,  -- -- -- --
-      PHOTON_C,             ///< 4x Bits A2, A3, DAC, WKP, -- -- -- --
-// ARDUINO_ESP8266_WEMOS_D1MINI - Builtin Wemos ports
-      WEMOS_A,              ///< 4x Bits GPIO   4,  0,  2, 14    Pins D2 D3 D4 D5
-      WEMOS_B,              ///< 4x Bits GPIO  12, 13,  3,  1    Pins D6 D7 RX TX
-      WEMOS_C,              ///< 4x Bits GPIO  16, 13,  3,  1    Pins D0 D7 RX TX
-      WEMOS_MATRIX,         ///< 4x Bits GPIO   4,  2, 14, 12    Pins D3 [D4 D5 D6] used by LEDCONTROL
-// cpNode from MRCS
-      CPNODE_LOW,           ///< 8x Bits GPIO   4,  5,  6,  7,  8,  9, 10, 11
-      CPNODE_HIGH,          ///< 8x Bits GPIO  12, 13, A0, A1, A2, A3, A4, A5
-
-    };
 
  private:
     uint8_t  _size;         ///< How many bits?
